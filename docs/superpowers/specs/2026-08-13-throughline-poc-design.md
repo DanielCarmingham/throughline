@@ -407,7 +407,59 @@ to understand a period" as an interface rather than a slogan.
 | `?` | help |
 | `q` | quit |
 
-## 9. Testing
+## 9. The method document (`docs/method.md`)
+
+### 9.1 Diagrams are a requirement, not decoration
+
+The sketch communicates the method almost entirely through left-to-right ASCII
+diagrams, and that is why it reads well: the central claim is spatial, so prose
+alone under-argues it. `docs/method.md` must carry a diagram for every structural
+claim it makes.
+
+### 9.2 Diagram inventory
+
+Carried forward from the sketch:
+
+| # | diagram | claim it argues |
+|---|---|---|
+| 1 | the line: completed work, Now, planned work | the project is a line |
+| 2 | the PDSA circle | work is cyclical |
+| 3 | the same cycle unrolled onto time | but progress is linear |
+| 4 | the sliding window over the line | attention is local and moves |
+| 5 | a selected slice | any slice tells a story |
+| 6 | `A → B → C → D` | strict ordering is a statement of intent |
+| 7 | a task tree vs. the same work spread on the line | hierarchy should be rare |
+| 8 | a bucket board vs. a line with a `Deploy` marker | avoid temporal buckets |
+| 9 | months laid across the line | history is first-class |
+| 10 | detail density fading with distance | planning is progressive |
+| 11 | Kanban's moving cards vs. "you are here" | the central inversion |
+
+Added by this design (sections 3.1–3.3):
+
+| # | diagram | claim it argues |
+|---|---|---|
+| 12 | one item crossing Now, before and after | status is position |
+| 13 | work placed after a `launch` marker | markers are landmarks, not buckets |
+| 14 | two readers viewing different spans of one line | the Window is a view |
+| 15 | the ribbon above the window list | the TUI's two zoom levels |
+
+### 9.3 Diagrams and the renderer share one vocabulary
+
+Every line-shaped diagram in the document uses the ascii glyph set from 7.1 —
+`[x]`, `[ ]`, `<>`, `|`, `>` — so that a reader who runs `tl line --glyphs ascii`
+sees the same shapes the document taught them. The document and the tool are one
+visual language, not two.
+
+Diagrams 1, 4, 5, 8, 9, 13, and 14 are *line-shaped*: they depict real line
+states and are therefore **generated from fixture lines by `tl` itself**, using
+the golden-snapshot machinery already required by section 10. The document
+cannot drift from the tool's actual output, because the output is the document.
+
+The remaining diagrams (2, 3, 6, 7, 10, 11, 12, 15) are conceptual or
+comparative — a PDSA circle, a Kanban board, a before/after pair — and are
+hand-drawn. They are checked by review, not by tests.
+
+## 10. Testing
 
 Test-driven throughout.
 
@@ -421,11 +473,12 @@ Test-driven throughout.
 | `theme` | a lint test asserting no view constructs a colour directly — every style must resolve from a token |
 | `cli` | `assert_cmd` integration tests, including `--json` schema stability and non-TTY degradation |
 
-## 10. Scope
+## 11. Scope
 
 **In scope for the POC:**
 
-- `docs/method.md`, written thoroughly.
+- `docs/method.md`, written thoroughly, carrying all fifteen diagrams in section
+  9.2 — the seven line-shaped ones generated from fixtures by `tl`.
 - `tl` with the command surface in section 6, the presentation layer in section
   7, and the TUI in section 8.
 - `.throughline/line.md` holding the plan for building Throughline itself.
@@ -439,7 +492,7 @@ Test-driven throughout.
 - An event log or time-travel beyond what git history provides.
 - Dependencies between items. Order expresses intent, not a dependency graph.
 
-## 11. Open questions
+## 12. Open questions
 
 None. Items previously undecided — storage location, stack, glyph set, and the
 detail-level representation — are resolved above.
