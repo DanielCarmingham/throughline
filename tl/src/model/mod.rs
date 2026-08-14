@@ -1,3 +1,6 @@
+pub mod ops;
+pub use ops::OpError;
+
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
