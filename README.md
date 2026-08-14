@@ -57,9 +57,11 @@ $ tl line
 
 Placement is required — there is no backlog to drop things into.
 
-**Status: in progress.** The model, format, views, lints, and both halves of the
-CLI are built and tested. The TUI, `tl init`, the method document, and the
-dogfooded line are not yet.
+**Status: the POC is complete.** 155 tests, clippy clean. Throughline now
+manages its own construction — `.throughline/line.md` is this project's line,
+and it passes `tl check`.
+
+The practice is written up in [docs/method.md](docs/method.md).
 
 ```
 cargo test -p tl      # the suite
@@ -74,6 +76,15 @@ cargo run -p tl -- --help
 | `site/` | tlflow.cc — Astro, deployed via uncloud |
 | `docs/` | design spec and implementation plan |
 | `brand/` | logo artwork and the tracer that generates every derived asset |
+| `.throughline/` | this project's own line — Throughline, dogfooded |
+
+## Working on this
+
+Trunk-based: commit to `main`, no long-lived branches. A feature branch is a
+temporal bucket for code, which is the thing [§7](docs/method.md) argues
+against.
+
+Version control is [jj](https://jj-vcs.dev) colocated with git, so both work.
 
 ## License
 
