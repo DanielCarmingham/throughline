@@ -2448,3 +2448,995 @@ Expected: PASS, 11 tests.
 git add tl/src/check/ tl/src/lib.rs
 git commit -m "feat(check): method lints with warning and error severities"
 ```
+
+---
+
+### Task 10: CLI read commands
+
+**Files:**
+- Create: `tl/src/cli/mod.rs`, `tl/src/cli/render.rs`, `tl/tests/read_commands.rs`
+- Modify: `tl/Cargo.toml` (add `clap`, dev-deps `assert_cmd`, `predicates`), `tl/src/main.rs`, `tl/src/lib.rs`, `tl/src/theme/mod.rs` (add `sgr`)
+- Test: `tl/tests/read_commands.rs`
+
+**Interfaces:**
+- Consumes: everything from Tasks 1–9.
+- Produces: `Cli` (clap parser), `cli::run(Cli) -> anyhow::Result<i32>`; `render::entries(&[Entry], &Ctx) -> String`, `Ctx { glyphs: Glyphs, theme: Theme, line: &Line }`; `Theme::sgr(Token) -> String`, `Theme::reset() -> &'static str`.
+
+`--json` output is a stable contract consumed by agents. Field names must not
+change without a deliberate decision.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `tl/tests/read_commands.rs`:
+
+```rust
+use assert_cmd::Command;
+use std::path::Path;
+
+const LINE: &str = "\
+# Throughline — Fixture
+
+## Line
+
+- [x] sketch the method  ^k3f
+      → ten properties
+
+── NOW ──
+
+- [ ] write the docs  ^q1d
+      the full method
+- [ ] parse line.md  ^r7e
+      grammar and errors
+
+◆ v0.1 ◆
+
+- [ ] build the tui  ^t9a
+      ribbon and list
+";
+
+fn fixture() -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join(".throughline")).unwrap();
+    std::fs::write(dir.path().join(".throughline/line.md"), LINE).unwrap();
+    dir
+}
+
+fn tl(dir: &Path) -> Command {
+    let mut c = Command::cargo_bin("tl").unwrap();
+    c.current_dir(dir);
+    c
+}
+
+#[test]
+fn line_prints_every_entry_in_order() {
+    let d = fixture();
+    let out = tl(d.path()).arg("line").assert().success();
+    let text = String::from_utf8(out.get_output().stdout.clone()).unwrap();
+    let order: Vec<&str> = ["sketch the method", "write the docs", "parse line.md", "v0.1", "build the tui"]
+        .into_iter()
+        .collect();
+    let mut last = 0;
+    for needle in order {
+        let at = text.find(needle).unwrap_or_else(|| panic!("missing {needle}"));
+        assert!(at >= last, "{needle} out of order");
+        last = at;
+    }
+}
+
+#[test]
+fn non_tty_output_is_ascii_with_no_escape_codes() {
+    let d = fixture();
+    let out = tl(d.path()).arg("line").assert().success();
+    let text = String::from_utf8(out.get_output().stdout.clone()).unwrap();
+    assert!(!text.contains('\u{1b}'), "escape codes leaked into piped output");
+    assert!(text.is_ascii(), "non-ascii glyphs leaked into piped output");
+}
+
+#[test]
+fn now_reports_the_next_item_ahead() {
+    let d = fixture();
+    tl(d.path())
+        .arg("now")
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("write the docs"));
+}
+
+#[test]
+fn window_is_narrower_than_the_whole_line() {
+    let d = fixture();
+    let out = tl(d.path()).args(["window", "--ahead", "1"]).assert().success();
+    let text = String::from_utf8(out.get_output().stdout.clone()).unwrap();
+    assert!(text.contains("write the docs"));
+    assert!(!text.contains("build the tui"));
+}
+
+#[test]
+fn slice_returns_only_the_requested_span() {
+    let d = fixture();
+    let out = tl(d.path()).args(["slice", "^q1d..^r7e"]).assert().success();
+    let text = String::from_utf8(out.get_output().stdout.clone()).unwrap();
+    assert!(text.contains("write the docs"));
+    assert!(text.contains("parse line.md"));
+    assert!(!text.contains("sketch the method"));
+}
+
+#[test]
+fn json_output_carries_the_stable_field_names() {
+    let d = fixture();
+    let out = tl(d.path()).args(["line", "--json"]).assert().success();
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.get_output().stdout).unwrap();
+    let entries = v["entries"].as_array().unwrap();
+    assert_eq!(entries[0]["kind"], "item");
+    assert_eq!(entries[0]["id"], "k3f");
+    assert_eq!(entries[0]["title"], "sketch the method");
+    assert_eq!(entries[0]["behind_now"], true);
+    assert_eq!(entries[1]["kind"], "now");
+    assert_eq!(v["now_index"], 1);
+}
+
+#[test]
+fn json_marks_future_items_as_ahead() {
+    let d = fixture();
+    let out = tl(d.path()).args(["now", "--json"]).assert().success();
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.get_output().stdout).unwrap();
+    assert_eq!(v["item"]["behind_now"], false);
+}
+
+#[test]
+fn a_missing_line_file_fails_with_a_useful_message() {
+    let empty = tempfile::tempdir().unwrap();
+    tl(empty.path())
+        .arg("line")
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("tl init"));
+}
+
+#[test]
+fn a_malformed_line_file_reports_the_line_number() {
+    let d = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(d.path().join(".throughline")).unwrap();
+    std::fs::write(
+        d.path().join(".throughline/line.md"),
+        "# T\n\n── NOW ──\n\n- [ ] no id here\n",
+    )
+    .unwrap();
+    tl(d.path())
+        .arg("line")
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("line.md:5"));
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cargo test -p tl --test read_commands`
+Expected: FAIL — the `tl` binary prints `tl` and ignores all arguments.
+
+- [ ] **Step 3: Write minimal implementation**
+
+Add to `tl/Cargo.toml`:
+
+```toml
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+tempfile = "3"
+serde_json = "1"
+```
+
+Add to `tl/src/theme/mod.rs`, inside `impl Theme`:
+
+```rust
+    /// SGR escape for plain-stdout rendering. Empty when colour is off, which
+    /// is what keeps piped output clean (spec 7.4).
+    pub fn sgr(&self, token: Token) -> String {
+        match self.depth {
+            Depth::None => String::new(),
+            _ => {
+                let (r, g, b, _) = self.swatch(token);
+                format!("\u{1b}[38;2;{r};{g};{b}m")
+            }
+        }
+    }
+
+    pub fn reset(&self) -> &'static str {
+        match self.depth {
+            Depth::None => "",
+            _ => "\u{1b}[0m",
+        }
+    }
+```
+
+Add `pub mod cli;` to `tl/src/lib.rs`. Create `tl/src/cli/render.rs`:
+
+```rust
+use crate::glyphs::{Glyphs, Role};
+use crate::model::{Entry, ItemState, Line};
+use crate::theme::{Theme, Token};
+use crate::view;
+use serde::Serialize;
+
+pub struct Ctx<'a> {
+    pub glyphs: Glyphs,
+    pub theme: Theme,
+    pub line: &'a Line,
+}
+
+/// Views name roles and tokens only — never a literal glyph or colour.
+pub fn entries(indices: std::ops::Range<usize>, ctx: &Ctx) -> String {
+    let now = ctx.line.now_index();
+    let mut out = String::new();
+
+    for i in indices {
+        let entry = &ctx.line.entries[i];
+        let distance = view::distance_from_now(ctx.line, i);
+        match entry {
+            Entry::Now => {
+                out.push_str(&format!(
+                    "{}{} NOW {}\n",
+                    ctx.theme.sgr(Token::Now),
+                    ctx.glyphs.get(Role::Now),
+                    ctx.theme.reset()
+                ));
+            }
+            Entry::Marker(m) => {
+                out.push_str(&format!(
+                    "{}{} {} {}\n",
+                    ctx.theme.sgr(Token::Marker),
+                    ctx.glyphs.get(Role::Marker),
+                    m.label,
+                    ctx.theme.reset()
+                ));
+            }
+            Entry::Item(item) => {
+                let role = match (&item.state, i < now) {
+                    (ItemState::Dropped(_), _) => Role::Dropped,
+                    (ItemState::Blocked(_), _) => Role::Blocked,
+                    (ItemState::Active, _) => Role::Active,
+                    (_, true) => Role::Done,
+                    (_, false) => Role::Open,
+                };
+                let token = match &item.state {
+                    ItemState::Dropped(_) => Token::Dropped,
+                    ItemState::Blocked(_) => Token::Blocked,
+                    _ => ctx.theme.fade(distance),
+                };
+                out.push_str(&format!(
+                    "{}{} {}  ^{}{}\n",
+                    ctx.theme.sgr(token),
+                    ctx.glyphs.get(role),
+                    item.title,
+                    item.id.0,
+                    ctx.theme.reset()
+                ));
+            }
+        }
+    }
+    out
+}
+
+#[derive(Serialize)]
+pub struct JsonEntry {
+    pub kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    pub behind_now: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub description: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub result: Vec<String>,
+}
+
+pub fn json_entries(indices: std::ops::Range<usize>, line: &Line) -> Vec<JsonEntry> {
+    let now = line.now_index();
+    indices
+        .map(|i| match &line.entries[i] {
+            Entry::Now => JsonEntry {
+                kind: "now",
+                id: None,
+                title: None,
+                behind_now: false,
+                description: vec![],
+                result: vec![],
+            },
+            Entry::Marker(m) => JsonEntry {
+                kind: "marker",
+                id: None,
+                title: Some(m.label.clone()),
+                behind_now: i < now,
+                description: vec![],
+                result: vec![],
+            },
+            Entry::Item(item) => JsonEntry {
+                kind: "item",
+                id: Some(item.id.0.clone()),
+                title: Some(item.title.clone()),
+                behind_now: i < now,
+                description: item.description.clone(),
+                result: item.result.clone(),
+            },
+        })
+        .collect()
+}
+```
+
+Create `tl/src/cli/mod.rs`:
+
+```rust
+pub mod render;
+
+use crate::config::Config;
+use crate::format::io;
+use crate::glyphs::{Glyphs, Mode};
+use crate::model::{Id, Line, Ref};
+use crate::theme::{Depth, Theme, Variant};
+use crate::view;
+use anyhow::{anyhow, Result};
+use clap::{Parser, Subcommand};
+use render::Ctx;
+use std::io::IsTerminal;
+
+#[derive(Parser)]
+#[command(name = "tl", about = "Manage a project as one ordered line")]
+pub struct Cli {
+    #[arg(long, global = true)]
+    pub glyphs: Option<String>,
+    #[arg(long, global = true)]
+    pub theme: Option<String>,
+    #[arg(long, global = true, default_value = "auto")]
+    pub color: String,
+    #[arg(long, global = true)]
+    pub json: bool,
+    #[command(subcommand)]
+    pub command: Option<Command>,
+}
+
+#[derive(Subcommand)]
+pub enum Command {
+    /// The whole line
+    Line,
+    /// What sits at Now
+    Now,
+    /// The current attention window
+    Window {
+        #[arg(long)]
+        back: Option<usize>,
+        #[arg(long)]
+        ahead: Option<usize>,
+    },
+    /// A span, written `<ref>..<ref>`
+    Slice { span: String },
+}
+
+fn parse_ref(s: &str) -> Ref {
+    match s {
+        "now" | "NOW" => Ref::Now,
+        other => match other.strip_prefix('^') {
+            Some(id) => Ref::Id(Id::new(id)),
+            None => Ref::Marker(other.to_string()),
+        },
+    }
+}
+
+fn load() -> Result<(Line, Config, std::path::PathBuf)> {
+    let cwd = std::env::current_dir()?;
+    let path = io::find_line_file(&cwd)
+        .ok_or_else(|| anyhow!("no .throughline/line.md found — run `tl init` to start one"))?;
+    let root = path.parent().and_then(|p| p.parent()).unwrap_or(&cwd).to_path_buf();
+    let cfg = Config::load(&root);
+    Ok((io::read(&path)?, cfg, path))
+}
+
+pub fn run(cli: Cli) -> Result<i32> {
+    let (line, mut cfg, _path) = load()?;
+
+    let is_tty = std::io::stdout().is_terminal();
+    let colour_on = match cli.color.as_str() {
+        "always" => true,
+        "never" => false,
+        _ => is_tty,
+    };
+    let ctx = Ctx {
+        glyphs: Glyphs::for_mode(Mode::resolve(cli.glyphs.as_deref(), &cfg, is_tty)),
+        theme: Theme::new(
+            Variant::resolve(cli.theme.as_deref(), &cfg),
+            if colour_on { Depth::detect(is_tty) } else { Depth::None },
+        ),
+        line: &line,
+    };
+
+    let span = match &cli.command {
+        Some(Command::Window { back, ahead }) => {
+            if let Some(b) = back { cfg.window_back = *b; }
+            if let Some(a) = ahead { cfg.window_ahead = *a; }
+            let w = view::window(&line, &cfg);
+            w.start..w.end
+        }
+        Some(Command::Slice { span }) => {
+            let (a, b) = span
+                .split_once("..")
+                .ok_or_else(|| anyhow!("a slice looks like `<ref>..<ref>`"))?;
+            let s = view::slice(&line, &parse_ref(a), &parse_ref(b))
+                .ok_or_else(|| anyhow!("no entry matches one end of {span}"))?;
+            s.start..s.end
+        }
+        Some(Command::Now) => {
+            let item = view::at_now(&line);
+            if cli.json {
+                let idx = item
+                    .and_then(|i| line.index_of(&Ref::Id(i.id.clone())))
+                    .map(|i| i..i + 1)
+                    .unwrap_or(0..0);
+                let entries = render::json_entries(idx, &line);
+                println!(
+                    "{}",
+                    serde_json::json!({ "item": entries.first(), "now_index": line.now_index() })
+                );
+            } else {
+                match item {
+                    Some(i) => {
+                        let idx = line.index_of(&Ref::Id(i.id.clone())).unwrap();
+                        print!("{}", render::entries(idx..idx + 1, &ctx));
+                    }
+                    None => println!("nothing ahead of Now"),
+                }
+            }
+            return Ok(0);
+        }
+        _ => 0..line.entries.len(),
+    };
+
+    if cli.json {
+        println!(
+            "{}",
+            serde_json::json!({
+                "entries": render::json_entries(span, &line),
+                "now_index": line.now_index(),
+            })
+        );
+    } else {
+        print!("{}", render::entries(span, &ctx));
+    }
+    Ok(0)
+}
+```
+
+Replace `tl/src/main.rs`:
+
+```rust
+use clap::Parser;
+
+fn main() {
+    let cli = tl::cli::Cli::parse();
+    match tl::cli::run(cli) {
+        Ok(code) => std::process::exit(code),
+        Err(e) => {
+            eprintln!("tl: {e}");
+            std::process::exit(1);
+        }
+    }
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `cargo test -p tl --test read_commands`
+Expected: PASS, 9 tests.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add tl/
+git commit -m "feat(cli): line, now, window, and slice with --json and non-TTY degradation"
+```
+
+---
+
+### Task 11: CLI write commands and `tl check`
+
+**Files:**
+- Create: `tl/tests/write_commands.rs`
+- Modify: `tl/src/cli/mod.rs`
+- Test: `tl/tests/write_commands.rs`
+
+**Interfaces:**
+- Consumes: `Command` enum and `run` from Task 10; `Line::insert/move_entry/advance/complete/drop_item` from Task 2; `check`/`has_errors` from Task 9; `io::write_atomic` from Task 5.
+- Produces: `Command::{Add, Move, Advance, Done, Drop, Mark, Sharpen, Split, Check, Fmt}` variants.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `tl/tests/write_commands.rs`:
+
+```rust
+use assert_cmd::Command;
+use std::path::Path;
+
+const LINE: &str = "\
+# Fixture
+
+## Line
+
+- [x] sketch  ^k3f
+
+── NOW ──
+
+- [ ] docs  ^q1d
+      the full method
+- [ ] parse  ^r7e
+      grammar
+
+◆ v0.1 ◆
+
+- [ ] tui  ^t9a
+      ribbon
+";
+
+fn fixture() -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join(".throughline")).unwrap();
+    std::fs::write(dir.path().join(".throughline/line.md"), LINE).unwrap();
+    dir
+}
+
+fn tl(dir: &Path) -> Command {
+    let mut c = Command::cargo_bin("tl").unwrap();
+    c.current_dir(dir);
+    c
+}
+
+fn read(dir: &Path) -> String {
+    std::fs::read_to_string(dir.path_join()).unwrap()
+}
+
+trait P {
+    fn path_join(&self) -> std::path::PathBuf;
+}
+impl P for Path {
+    fn path_join(&self) -> std::path::PathBuf {
+        self.join(".throughline/line.md")
+    }
+}
+
+#[test]
+fn add_requires_a_placement() {
+    let d = fixture();
+    tl(d.path()).args(["add", "new work"]).assert().failure();
+}
+
+#[test]
+fn add_after_places_the_item_immediately_after() {
+    let d = fixture();
+    tl(d.path())
+        .args(["add", "new work", "--after", "^q1d"])
+        .assert()
+        .success();
+    let text = read(d.path());
+    let a = text.find("docs").unwrap();
+    let b = text.find("new work").unwrap();
+    let c = text.find("parse").unwrap();
+    assert!(a < b && b < c);
+}
+
+#[test]
+fn add_after_a_marker_expresses_post_launch_work_as_a_position() {
+    let d = fixture();
+    tl(d.path())
+        .args(["add", "cleanup", "--after", "v0.1"])
+        .assert()
+        .success();
+    let text = read(d.path());
+    assert!(text.find("◆ v0.1 ◆").unwrap() < text.find("cleanup").unwrap());
+}
+
+#[test]
+fn advance_moves_now_and_rewrites_the_checkbox() {
+    let d = fixture();
+    tl(d.path()).arg("advance").assert().success();
+    let text = read(d.path());
+    assert!(text.contains("- [x] docs  ^q1d"));
+    assert!(text.find("docs").unwrap() < text.find("── NOW ──").unwrap());
+}
+
+#[test]
+fn advance_records_a_result() {
+    let d = fixture();
+    tl(d.path())
+        .args(["advance", "--result", "shipped it"])
+        .assert()
+        .success();
+    assert!(read(d.path()).contains("→ shipped it"));
+}
+
+#[test]
+fn done_completes_an_item_out_of_order() {
+    let d = fixture();
+    tl(d.path()).args(["done", "^t9a"]).assert().success();
+    let text = read(d.path());
+    assert!(text.contains("- [x] tui  ^t9a"));
+    assert!(text.find("tui").unwrap() < text.find("── NOW ──").unwrap());
+}
+
+#[test]
+fn drop_records_the_reason_and_moves_the_item_behind_now() {
+    let d = fixture();
+    tl(d.path())
+        .args(["drop", "^r7e", "--why", "superseded"])
+        .assert()
+        .success();
+    let text = read(d.path());
+    assert!(text.contains("- [-] parse  ^r7e  @dropped(superseded)"));
+}
+
+#[test]
+fn move_reorders_without_duplicating() {
+    let d = fixture();
+    tl(d.path())
+        .args(["move", "^t9a", "--before", "^q1d"])
+        .assert()
+        .success();
+    let text = read(d.path());
+    assert_eq!(text.matches("^t9a").count(), 1);
+    assert!(text.find("tui").unwrap() < text.find("docs").unwrap());
+}
+
+#[test]
+fn mark_places_a_landmark() {
+    let d = fixture();
+    tl(d.path())
+        .args(["mark", "v0.2", "--after", "^t9a"])
+        .assert()
+        .success();
+    assert!(read(d.path()).contains("◆ v0.2 ◆"));
+}
+
+#[test]
+fn sharpen_adds_a_body() {
+    let d = fixture();
+    tl(d.path())
+        .args(["sharpen", "^t9a", "--body", "ribbon plus window list"])
+        .assert()
+        .success();
+    assert!(read(d.path()).contains("      ribbon plus window list"));
+}
+
+#[test]
+fn fmt_normalizes_ascii_syntax_and_wrong_checkboxes() {
+    let d = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(d.path().join(".throughline")).unwrap();
+    std::fs::write(
+        d.path().join(".throughline/line.md"),
+        "# T\n\n- [ ] past  ^aaa\n\n-- NOW --\n\n<> v1 <>\n\n- [x] future  ^bbb\n",
+    )
+    .unwrap();
+    tl(d.path()).arg("fmt").assert().success();
+    let text = read(d.path());
+    assert!(text.contains("── NOW ──"));
+    assert!(text.contains("◆ v1 ◆"));
+    assert!(text.contains("- [x] past  ^aaa"));
+    assert!(text.contains("- [ ] future  ^bbb"));
+}
+
+#[test]
+fn check_exits_zero_when_only_warnings_fire() {
+    let d = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(d.path().join(".throughline")).unwrap();
+    std::fs::write(
+        d.path().join(".throughline/line.md"),
+        "# T\n\n── NOW ──\n\n- [ ] bare  ^aaa\n",
+    )
+    .unwrap();
+    tl(d.path())
+        .arg("check")
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("unsharpened"));
+}
+
+#[test]
+fn check_exits_non_zero_on_an_error_lint() {
+    let d = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(d.path().join(".throughline")).unwrap();
+    std::fs::write(
+        d.path().join(".throughline/line.md"),
+        "# T\n\n── NOW ──\n\n- [ ] a  ^aaa\n      body\n      → premature\n",
+    )
+    .unwrap();
+    tl(d.path())
+        .arg("check")
+        .assert()
+        .failure()
+        .stdout(predicates::str::contains("result-ahead"));
+}
+
+#[test]
+fn check_json_lists_findings_with_severities() {
+    let d = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(d.path().join(".throughline")).unwrap();
+    std::fs::write(
+        d.path().join(".throughline/line.md"),
+        "# T\n\n── NOW ──\n\n- [ ] bare  ^aaa\n",
+    )
+    .unwrap();
+    let out = tl(d.path()).args(["check", "--json"]).assert().success();
+    let v: serde_json::Value = serde_json::from_slice(&out.get_output().stdout).unwrap();
+    assert_eq!(v["findings"][0]["lint"], "unsharpened");
+    assert_eq!(v["findings"][0]["severity"], "warning");
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cargo test -p tl --test write_commands`
+Expected: FAIL — `error: unrecognized subcommand 'add'`.
+
+- [ ] **Step 3: Write minimal implementation**
+
+Add to the `Command` enum in `tl/src/cli/mod.rs`:
+
+```rust
+    /// Add an item. Placement is required.
+    Add {
+        title: String,
+        #[arg(long, group = "place")]
+        after: Option<String>,
+        #[arg(long, group = "place")]
+        before: Option<String>,
+        #[arg(long, group = "place")]
+        end: bool,
+    },
+    /// Reorder — this is replanning
+    Move {
+        id: String,
+        #[arg(long, group = "place")]
+        after: Option<String>,
+        #[arg(long, group = "place")]
+        before: Option<String>,
+    },
+    /// Move Now forward — this is completion
+    Advance {
+        id: Option<String>,
+        #[arg(long)]
+        result: Option<String>,
+        #[arg(long)]
+        commit: Option<String>,
+    },
+    /// Complete an item out of order
+    Done {
+        id: String,
+        #[arg(long)]
+        result: Option<String>,
+        #[arg(long)]
+        commit: Option<String>,
+    },
+    /// The other outcome
+    Drop {
+        id: String,
+        #[arg(long)]
+        why: String,
+        #[arg(long)]
+        result: Option<String>,
+    },
+    /// Place a landmark
+    Mark {
+        label: String,
+        #[arg(long, group = "place")]
+        after: Option<String>,
+        #[arg(long, group = "place")]
+        before: Option<String>,
+    },
+    /// Add or replace an item's body
+    Sharpen {
+        id: String,
+        #[arg(long)]
+        body: String,
+    },
+    /// Promote children onto the line
+    Split { id: String },
+    /// Lint the line against the method
+    Check,
+    /// Normalize derived content
+    Fmt,
+```
+
+Add helpers and dispatch to `tl/src/cli/mod.rs`. Insert before `pub fn run`:
+
+```rust
+use crate::check::{self, Severity};
+use crate::model::{Child, Entry, Item, ItemState, Marker, Position};
+
+fn placement(
+    after: &Option<String>,
+    before: &Option<String>,
+    end: bool,
+) -> Result<Position> {
+    match (after, before, end) {
+        (Some(a), _, _) => Ok(Position::After(parse_ref(a))),
+        (_, Some(b), _) => Ok(Position::Before(parse_ref(b))),
+        (_, _, true) => Ok(Position::End),
+        _ => Err(anyhow!(
+            "placement is required: pass --after, --before, or --end. \
+             Choosing where work goes is the thinking the method asks for."
+        )),
+    }
+}
+
+/// Ids are short, stable, and derived from content so two runs never collide.
+fn fresh_id(line: &Line, seed: &str) -> Id {
+    let mut hash: u64 = 1469598103934665603;
+    for b in seed.bytes().chain(line.entries.len().to_le_bytes()) {
+        hash ^= b as u64;
+        hash = hash.wrapping_mul(1099511628211);
+    }
+    let alphabet = b"abcdefghijklmnopqrstuvwxyz0123456789";
+    for attempt in 0..64u64 {
+        let mut n = hash.wrapping_add(attempt);
+        let mut s = String::new();
+        for _ in 0..3 {
+            s.push(alphabet[(n % 36) as usize] as char);
+            n /= 36;
+        }
+        if line.item(&Id::new(s.clone())).is_none() {
+            return Id::new(s);
+        }
+    }
+    Id::new(format!("x{}", line.entries.len()))
+}
+
+fn set_outcome(line: &mut Line, id: &Id, result: Option<String>, commit: Option<String>) {
+    if let Some(idx) = line.index_of(&Ref::Id(id.clone())) {
+        if let Entry::Item(item) = &mut line.entries[idx] {
+            if let Some(r) = result {
+                item.result = r.lines().map(str::to_string).collect();
+            }
+            if let Some(c) = commit {
+                item.commit = Some(c);
+            }
+        }
+    }
+}
+```
+
+Insert this block into `run`, immediately after `let (line, mut cfg, _path) = load()?;` — change that binding to `let (mut line, mut cfg, path) = load()?;` first:
+
+```rust
+    // Write commands mutate and persist, then return.
+    match &cli.command {
+        Some(Command::Add { title, after, before, end }) => {
+            let id = fresh_id(&line, title);
+            line.insert(
+                Entry::Item(Item::new(id, title.clone())),
+                &placement(after, before, *end)?,
+            )?;
+            io::write_atomic(&path, &line)?;
+            return Ok(0);
+        }
+        Some(Command::Move { id, after, before }) => {
+            line.move_entry(
+                &parse_ref(id),
+                &placement(after, before, false)?,
+            )?;
+            io::write_atomic(&path, &line)?;
+            return Ok(0);
+        }
+        Some(Command::Advance { id, result, commit }) => {
+            let target = id.as_ref().map(|s| parse_ref(s));
+            let passed = line.advance(target.as_ref())?;
+            if let Some(last) = passed.last() {
+                set_outcome(&mut line, last, result.clone(), commit.clone());
+            }
+            io::write_atomic(&path, &line)?;
+            return Ok(0);
+        }
+        Some(Command::Done { id, result, commit }) => {
+            let id = Id::new(id.trim_start_matches('^'));
+            line.complete(&id)?;
+            set_outcome(&mut line, &id, result.clone(), commit.clone());
+            io::write_atomic(&path, &line)?;
+            return Ok(0);
+        }
+        Some(Command::Drop { id, why, result }) => {
+            let id = Id::new(id.trim_start_matches('^'));
+            line.drop_item(&id, why.clone())?;
+            set_outcome(&mut line, &id, result.clone(), None);
+            io::write_atomic(&path, &line)?;
+            return Ok(0);
+        }
+        Some(Command::Mark { label, after, before }) => {
+            line.insert(
+                Entry::Marker(Marker { label: label.clone() }),
+                &placement(after, before, false)?,
+            )?;
+            io::write_atomic(&path, &line)?;
+            return Ok(0);
+        }
+        Some(Command::Sharpen { id, body }) => {
+            let idx = line
+                .index_of(&parse_ref(id))
+                .ok_or_else(|| anyhow!("no item {id}"))?;
+            if let Entry::Item(item) = &mut line.entries[idx] {
+                item.description = body.lines().map(str::to_string).collect();
+            }
+            io::write_atomic(&path, &line)?;
+            return Ok(0);
+        }
+        Some(Command::Split { id }) => {
+            let idx = line
+                .index_of(&parse_ref(id))
+                .ok_or_else(|| anyhow!("no item {id}"))?;
+            let children: Vec<Child> = match &mut line.entries[idx] {
+                Entry::Item(item) => std::mem::take(&mut item.children),
+                _ => return Err(anyhow!("{id} is not an item")),
+            };
+            let anchor = parse_ref(id);
+            for child in children.into_iter().rev() {
+                let cid = fresh_id(&line, &child.title);
+                let mut item = Item::new(cid, child.title);
+                if child.done {
+                    item.state = ItemState::Plain;
+                }
+                line.insert(Entry::Item(item), &Position::After(anchor.clone()))?;
+            }
+            io::write_atomic(&path, &line)?;
+            return Ok(0);
+        }
+        Some(Command::Fmt) => {
+            io::write_atomic(&path, &line)?;
+            return Ok(0);
+        }
+        Some(Command::Check) => {
+            let findings = check::check(&line, &cfg);
+            if cli.json {
+                let rows: Vec<_> = findings
+                    .iter()
+                    .map(|f| {
+                        serde_json::json!({
+                            "lint": f.lint,
+                            "severity": match f.severity {
+                                Severity::Warning => "warning",
+                                Severity::Error => "error",
+                            },
+                            "subject": f.subject,
+                            "message": f.message,
+                        })
+                    })
+                    .collect();
+                println!("{}", serde_json::json!({ "findings": rows }));
+            } else {
+                for f in &findings {
+                    let tag = match f.severity {
+                        Severity::Warning => "warning",
+                        Severity::Error => "error",
+                    };
+                    println!("{tag}: {} [{}] {}", f.subject, f.lint, f.message);
+                }
+                if findings.is_empty() {
+                    println!("the line is clean");
+                }
+            }
+            return Ok(if check::has_errors(&findings) { 1 } else { 0 });
+        }
+        _ => {}
+    }
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `cargo test -p tl --test write_commands`
+Expected: PASS, 14 tests.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add tl/
+git commit -m "feat(cli): add, move, advance, done, drop, mark, sharpen, split, fmt, check"
+```
