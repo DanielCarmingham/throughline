@@ -50,8 +50,8 @@
 - [x] user-authored themes  ^a67  @commit(vvokmtvztmvt)
       TOML theme files overriding the 13 semantic tokens, with a base to inherit from. Must reject unknown token names — a typo that silently does nothing is worse than an error.
       → TOML themes over a dark/light base, overriding only named tokens; unknown names rejected. The token layer made it a drop-in as the spec predicted. Found and fixed --color always producing no colour when piped — the same bug class as --glyphs, which I had fixed without checking for its twin.
+- [x] publish tlflow as a released binary  ^hky
+      Cross-compiled binaries per platform, plus an install path that is not cargo build.
 
 ── NOW ──
 
-- [ ] publish tlflow as a released binary  ^hky
-      Cross-compiled binaries per platform, plus an install path that is not cargo build.

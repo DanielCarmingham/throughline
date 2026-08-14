@@ -38,6 +38,8 @@ record.
 - `tlflow advance --result \"what happened\"` — completion moves Now forward
 - `tlflow check` — lint the line against the practice before finishing
 
+Run `tlflow --help` for refs and examples; docs/manual.md is the full reference.
+
 Completion is position, not state: an item is done when it sits **behind Now**.
 Record what actually happened with `--result`; that is where the practice keeps
 what it learned.

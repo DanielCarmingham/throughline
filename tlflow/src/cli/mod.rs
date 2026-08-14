@@ -14,15 +14,48 @@ use render::Ctx;
 use std::io::IsTerminal;
 use std::path::Path;
 
+const AFTER_HELP: &str = "\
+REFS
+  Commands that take a <ref> accept any of:
+    ^k3f        an item id, as shown after each title
+    v0.1        a marker label
+    now         the Now boundary itself
+
+THE SHAPE OF IT
+  Work lives on one ordered line: history behind Now, intention ahead of it.
+  Completion is POSITION, not state — an item is done when it sits behind Now.
+  Placement is always required; there is no backlog to drop things into.
+
+EXAMPLES
+  tlflow                                   open the terminal UI
+  tlflow window                            what is in focus right now
+  tlflow add \"parse the file\" --after now  place work deliberately
+  tlflow advance --result \"tests pass\"     complete, and record what happened
+  tlflow move ^k3f --before v0.1           reorder; this is replanning
+  tlflow check                             lint the line against the practice
+  tlflow line --json                       machine-readable, for scripts and agents
+
+  Full manual: docs/manual.md          The practice: https://tlflow.cc";
+
 #[derive(Parser)]
-#[command(name = "tlflow", about = "Manage work as one ordered line")]
+#[command(
+    name = "tlflow",
+    about = "Manage work as one ordered line — a practice of continuous inquiry and forward flow",
+    after_help = AFTER_HELP,
+    version
+)]
 pub struct Cli {
-    #[arg(long, global = true)]
+    /// Glyph set: nerdfont, unicode or ascii. Piped output uses ascii unless
+    /// this is given explicitly.
+    #[arg(long, global = true, value_name = "MODE")]
     pub glyphs: Option<String>,
-    #[arg(long, global = true)]
+    /// Theme name: dark, light, or a file in .throughline/themes/.
+    #[arg(long, global = true, value_name = "NAME")]
     pub theme: Option<String>,
-    #[arg(long, global = true, default_value = "auto")]
+    /// When to colour output: auto, always or never.
+    #[arg(long, global = true, default_value = "auto", value_name = "WHEN")]
     pub color: String,
+    /// Emit JSON instead of formatted text.
     #[arg(long, global = true)]
     pub json: bool,
     #[command(subcommand)]
@@ -37,77 +70,111 @@ pub enum Command {
     Now,
     /// The current attention window
     Window {
-        #[arg(long)]
+        /// Items of history to include (default 3).
+        #[arg(long, value_name = "N")]
         back: Option<usize>,
-        #[arg(long)]
+        /// Items of intention to include (default 7).
+        #[arg(long, value_name = "N")]
         ahead: Option<usize>,
     },
     /// A span, written `<ref>..<ref>`
-    Slice { span: String },
+    Slice {
+        /// A span written `<ref>..<ref>`, e.g. `^k3f..now`.
+        span: String,
+    },
     /// Add an item. Placement is required.
     Add {
+        /// What the work is.
         title: String,
-        #[arg(long, group = "place")]
+        /// Place immediately after this ref.
+        #[arg(long, group = "place", value_name = "REF")]
         after: Option<String>,
-        #[arg(long, group = "place")]
+        /// Place immediately before this ref.
+        #[arg(long, group = "place", value_name = "REF")]
         before: Option<String>,
+        /// Place at the far end of the line.
         #[arg(long, group = "place")]
         end: bool,
     },
     /// Reorder — this is replanning
     Move {
+        /// The item or marker to move.
         id: String,
-        #[arg(long, group = "place")]
+        /// Move to just after this ref.
+        #[arg(long, group = "place", value_name = "REF")]
         after: Option<String>,
-        #[arg(long, group = "place")]
+        /// Move to just before this ref.
+        #[arg(long, group = "place", value_name = "REF")]
         before: Option<String>,
     },
     /// Move Now forward — this is completion
     Advance {
+        /// Advance past everything up to and including this ref. Omit for the
+        /// next item.
         id: Option<String>,
-        #[arg(long)]
+        /// What actually happened. This is where the practice keeps what it
+        /// learned.
+        #[arg(long, value_name = "TEXT")]
         result: Option<String>,
-        #[arg(long)]
+        /// Link a revision. `auto` asks the repo, preferring a jj change ID
+        /// because it survives rewriting where a git SHA does not.
+        #[arg(long, value_name = "REV")]
         commit: Option<String>,
     },
     /// Complete an item out of order
     Done {
+        /// The item to complete.
         id: String,
-        #[arg(long)]
+        /// What actually happened.
+        #[arg(long, value_name = "TEXT")]
         result: Option<String>,
-        #[arg(long)]
+        /// Link a revision; `auto` asks the repo.
+        #[arg(long, value_name = "REV")]
         commit: Option<String>,
     },
     /// The other outcome
     Drop {
+        /// The item to drop.
         id: String,
-        #[arg(long)]
+        /// Why it will not be done.
+        #[arg(long, value_name = "TEXT")]
         why: String,
-        #[arg(long)]
+        /// Anything learned in the process.
+        #[arg(long, value_name = "TEXT")]
         result: Option<String>,
     },
     /// Place a landmark
     Mark {
+        /// The landmark's name, e.g. `v0.1` or `launch`.
         label: String,
-        #[arg(long, group = "place")]
+        /// Place immediately after this ref.
+        #[arg(long, group = "place", value_name = "REF")]
         after: Option<String>,
-        #[arg(long, group = "place")]
+        /// Place immediately before this ref.
+        #[arg(long, group = "place", value_name = "REF")]
         before: Option<String>,
     },
     /// Change an item's title. The line is hand-editable, but a verb keeps
     /// scripts and agents from having to rewrite Markdown.
     Retitle {
+        /// The item or marker to rename.
         id: String,
+        /// The new title.
         title: String,
     },
     /// Add or replace an item's body
     Sharpen {
+        /// The item to sharpen.
         id: String,
-        #[arg(long)]
+        /// The body text. Having one is what "sharpened" means.
+        #[arg(long, value_name = "TEXT")]
         body: String,
     },
     /// Promote children onto the line
-    Split { id: String },
+    Split {
+        /// The parent whose children become items on the line.
+        id: String,
+    },
     /// Lint the line against the practice
     Check,
     /// Normalize derived content
@@ -117,12 +184,17 @@ pub enum Command {
     /// Re-run glyph and theme capability detection
     Doctor,
     /// Seed a line from a plan document
-    Plan { file: std::path::PathBuf },
+    Plan {
+        /// A markdown plan; `### Task N: Title` headings become items.
+        file: std::path::PathBuf,
+    },
     /// Serve the line to agents as MCP tools over stdio
     Mcp,
     /// Print a generated method-document diagram
     Diagram {
+        /// Which diagram. Omit to list the available names.
         name: Option<String>,
+        /// Print every diagram, fenced and ready to paste.
         #[arg(long)]
         all: bool,
     },

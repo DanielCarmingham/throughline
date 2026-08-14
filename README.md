@@ -64,9 +64,14 @@ and it passes `tlflow check`.
 The practice is written up in [docs/method.md](docs/method.md).
 
 ```
-cargo test -p throughline      # the suite
-cargo run -p throughline -- --help
+cargo install --path tlflow    # puts `tlflow` on your PATH
+tlflow init                    # start a line in any repo
+tlflow                         # open the terminal UI
+tlflow --help                  # refs, examples, every flag
 ```
+
+**[The manual](docs/manual.md)** — every command, the keymap, the file format,
+config and themes. **[The practice](docs/method.md)** — what any of it is for.
 
 ## For agents
 
