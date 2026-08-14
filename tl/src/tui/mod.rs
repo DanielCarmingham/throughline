@@ -1,1 +1,181 @@
+pub mod app;
+pub mod list;
 pub mod ribbon;
+
+use crate::config::Config;
+use crate::glyphs::{Glyphs, Mode};
+// `ratatui::prelude::*` also exports `Line`, so alias ours to keep them apart.
+use crate::model::Line as ProjectLine;
+use crate::theme::{Depth, Theme, Token, Variant};
+use crate::view;
+use anyhow::Result;
+use crossterm::event::{self, Event, KeyCode, KeyEventKind};
+use crossterm::terminal::{
+    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+};
+use ratatui::prelude::*;
+use ratatui::widgets::Paragraph;
+use std::path::Path;
+
+const HELP: &str = "j/k move · J/K reorder · n Now · space advance · a add · s sharpen \
+                    · m mark · d drop · [/] window · / search · t theme · ? help · q quit";
+
+pub fn launch(
+    line: ProjectLine,
+    cfg: Config,
+    path: &Path,
+    mode: Mode,
+    theme_variant: Variant,
+) -> Result<()> {
+    enable_raw_mode()?;
+    let mut out = std::io::stdout();
+    crossterm::execute!(out, EnterAlternateScreen)?;
+    let mut term = Terminal::new(CrosstermBackend::new(out))?;
+
+    let mut app = app::App::new(line, cfg);
+    app.variant = theme_variant;
+    let glyphs = Glyphs::for_mode(mode);
+
+    let result = run_loop(&mut term, &mut app, &glyphs, path);
+
+    disable_raw_mode()?;
+    crossterm::execute!(term.backend_mut(), LeaveAlternateScreen)?;
+    term.show_cursor()?;
+    result
+}
+
+fn run_loop<B: Backend>(
+    term: &mut Terminal<B>,
+    app: &mut app::App,
+    glyphs: &Glyphs,
+    path: &Path,
+) -> Result<()> {
+    loop {
+        let theme = Theme::new(app.variant, Depth::True);
+        term.draw(|f| draw(f, app, glyphs, &theme))?;
+
+        if let Event::Key(k) = event::read()? {
+            if k.kind != KeyEventKind::Press {
+                continue;
+            }
+            // While a prompt is open, keys feed the buffer instead of the keymap.
+            if app.prompt.is_some() {
+                match k.code {
+                    KeyCode::Enter => app.commit_prompt(),
+                    KeyCode::Esc => {
+                        app.prompt = None;
+                        app.buffer.clear();
+                    }
+                    KeyCode::Backspace => {
+                        app.buffer.pop();
+                    }
+                    KeyCode::Char(c) => app.buffer.push(c),
+                    _ => {}
+                }
+                continue;
+            }
+            if app::Action::Quit == app.on_key(k.code) {
+                break;
+            }
+        }
+
+        if app.dirty {
+            crate::format::io::write_atomic(path, &app.line)?;
+            app.dirty = false;
+        }
+    }
+    Ok(())
+}
+
+fn to_line<'a>(segments: &[ribbon::Segment], theme: &Theme) -> Line<'a> {
+    Line::from(
+        segments
+            .iter()
+            .map(|s| Span::styled(s.text.clone(), theme.style(s.token)))
+            .collect::<Vec<_>>(),
+    )
+}
+
+pub fn draw(f: &mut Frame, app: &app::App, glyphs: &Glyphs, theme: &Theme) {
+    let chunks = Layout::vertical([
+        Constraint::Length(2),
+        Constraint::Min(1),
+        Constraint::Length(1),
+    ])
+    .split(f.area());
+
+    // Zoom out: the whole project as one row.
+    let window = view::window(&app.line, &app.cfg);
+    let segs = ribbon::build(&app.line, window, glyphs, chunks[0].width as usize);
+    f.render_widget(Paragraph::new(to_line(&segs, theme)), chunks[0]);
+
+    // Zoom in: readable titles for what is in the window.
+    let rows: Vec<Line> = list::build(app, glyphs)
+        .iter()
+        .map(|r| to_line(r, theme))
+        .collect();
+    f.render_widget(Paragraph::new(rows), chunks[1]);
+
+    let status = if let Some(p) = app.prompt {
+        let label = match p {
+            app::Prompt::Add => "add",
+            app::Prompt::Sharpen => "sharpen",
+            app::Prompt::Mark => "mark",
+            app::Prompt::Search => "search",
+        };
+        Line::from(vec![Span::styled(
+            format!("{label}: {}", app.buffer),
+            theme.style(Token::Cursor),
+        )])
+    } else if app.help {
+        Line::from(vec![Span::styled(HELP, theme.style(Token::Muted))])
+    } else {
+        Line::from(vec![Span::styled(
+            "? help · q quit",
+            theme.style(Token::Muted),
+        )])
+    };
+    f.render_widget(Paragraph::new(status), chunks[2]);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::format::parse;
+    use ratatui::backend::TestBackend;
+
+    fn sample() -> ProjectLine {
+        parse("# T\n\n- [x] a  ^aaa\n\n── NOW ──\n\n- [ ] b  ^bbb\n      why b matters\n- [ ] c  ^ccc\n")
+            .unwrap()
+    }
+
+    /// Drawing must not panic at any plausible terminal size — including ones
+    /// too small to hold the ribbon.
+    #[test]
+    fn draws_at_a_range_of_terminal_sizes() {
+        for (w, h) in [(80, 24), (40, 10), (200, 60), (20, 5), (10, 3)] {
+            let backend = TestBackend::new(w, h);
+            let mut term = Terminal::new(backend).unwrap();
+            let app = app::App::new(sample(), Config::default());
+            let theme = Theme::new(Variant::Dark, Depth::True);
+            let glyphs = Glyphs::for_mode(Mode::Ascii);
+            term.draw(|f| draw(f, &app, &glyphs, &theme))
+                .unwrap_or_else(|e| panic!("draw failed at {w}x{h}: {e}"));
+        }
+    }
+
+    #[test]
+    fn the_rendered_screen_shows_both_zoom_levels() {
+        let backend = TestBackend::new(60, 12);
+        let mut term = Terminal::new(backend).unwrap();
+        let app = app::App::new(sample(), Config::default());
+        let theme = Theme::new(Variant::Dark, Depth::None);
+        let glyphs = Glyphs::for_mode(Mode::Ascii);
+        term.draw(|f| draw(f, &app, &glyphs, &theme)).unwrap();
+
+        let text: String = term.backend().buffer().content().iter().map(|c| c.symbol()).collect();
+        assert!(text.contains("[x]"), "ribbon missing from: {text}");
+        assert!(text.contains("^bbb"), "window list missing titles");
+        assert!(text.contains("q quit"), "status bar missing");
+    }
+}

@@ -402,6 +402,13 @@ pub fn run(cli: Cli) -> Result<i32> {
             }
             return Ok(0);
         }
+        None => {
+            // No subcommand: open the TUI.
+            let mode = Mode::resolve(cli.glyphs.as_deref(), &cfg, is_tty);
+            let variant = Variant::resolve(cli.theme.as_deref(), &cfg);
+            crate::tui::launch(line, cfg, &path, mode, variant)?;
+            return Ok(0);
+        }
         _ => 0..line.entries.len(),
     };
 

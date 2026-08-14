@@ -1,0 +1,9 @@
+---
+source: tl/src/tui/list.rs
+expression: text
+---
+  [x] a  ^aaa
+> | NOW
+  [ ] b  ^bbb
+      why b matters
+  [ ] c  ^ccc
