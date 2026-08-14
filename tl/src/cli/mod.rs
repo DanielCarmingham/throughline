@@ -1,3 +1,4 @@
+pub mod init;
 pub mod render;
 
 use crate::config::Config;
@@ -105,6 +106,12 @@ pub enum Command {
     Check,
     /// Normalize derived content
     Fmt,
+    /// Create .throughline/, a practice summary, and the agent stanza
+    Init,
+    /// Re-run glyph and theme capability detection
+    Doctor,
+    /// Seed a line from a plan document
+    Plan { file: std::path::PathBuf },
 }
 
 pub fn parse_ref(s: &str) -> Ref {
@@ -216,6 +223,19 @@ fn load() -> Result<(Line, Config, std::path::PathBuf)> {
 }
 
 pub fn run(cli: Cli) -> Result<i32> {
+    // These two run before load(): `init` exists precisely because there is no
+    // line yet, and `doctor` only needs the glyph tables.
+    if let Some(Command::Init) = cli.command {
+        let root = std::env::current_dir()?;
+        init::scaffold(&root)?;
+        println!("initialised .throughline/ — run `tl` to open the line");
+        return Ok(0);
+    }
+    if let Some(Command::Doctor) = cli.command {
+        print!("{}", init::sample_rows());
+        return Ok(0);
+    }
+
     let (mut line, mut cfg, path) = load()?;
 
     let is_tty = std::io::stdout().is_terminal();
@@ -310,6 +330,12 @@ pub fn run(cli: Cli) -> Result<i32> {
                 line.insert(Entry::Item(item), &Position::After(anchor.clone()))?;
             }
             io::write_atomic(&path, &line)?;
+            return Ok(0);
+        }
+        Some(Command::Plan { file }) => {
+            let added = init::from_plan(file, &mut line)?;
+            io::write_atomic(&path, &line)?;
+            println!("seeded {added} items from {}", file.display());
             return Ok(0);
         }
         Some(Command::Fmt) => {
