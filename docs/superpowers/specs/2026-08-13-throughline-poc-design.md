@@ -445,10 +445,15 @@ Added by this design (sections 3.1–3.3):
 
 ### 9.3 Diagrams and the renderer share one vocabulary
 
-Every line-shaped diagram in the document uses the ascii glyph set from 7.1 —
-`[x]`, `[ ]`, `<>`, `|`, `>` — so that a reader who runs `tl line --glyphs ascii`
-sees the same shapes the document taught them. The document and the tool are one
-visual language, not two.
+Every line-shaped diagram in the document uses the unicode glyph set from 7.1 —
+`●`, `○`, `◆`, `│`, `▶` — so that a reader who runs `tl line` sees the same
+shapes the document taught them. The document and the tool are one visual
+language, not two.
+
+Unicode rather than ascii, because a document is not terminal-constrained the way
+a running TUI is, and the sketch demonstrates that these shapes are most of what
+makes the method legible. The ascii set exists for degraded terminals and piped
+output, not for prose.
 
 Diagrams 1, 4, 5, 8, 9, 13, and 14 are *line-shaped*: they depict real line
 states and are therefore **generated from fixture lines by `tl` itself**, using
