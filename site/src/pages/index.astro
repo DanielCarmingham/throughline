@@ -233,12 +233,40 @@ const vocabulary = [
 <span class="c">$</span> tlflow advance --result "round-trip tests pass"</code></pre>
           <figcaption>placement is required — there is no backlog to drop things into</figcaption>
         </figure>
+
+        <div class="prose">
+          <p>
+            It also speaks <span class="term">MCP</span>, so a coding agent gets typed tools instead
+            of parsing terminal output — and the handshake teaches it the vocabulary, so it arrives
+            already knowing what Now means.
+          </p>
+        </div>
+
+        <div class="get">
+          <pre class="ascii" aria-label="Installing tlflow"><code><span class="c">$</span> cargo install --path tlflow
+<span class="c">$</span> tlflow init
+<span class="c">$</span> tlflow</code></pre>
+          <p class="get__links">
+            <a href="https://github.com/DanielCarmingham/throughline">Source</a>
+            <a href="https://github.com/DanielCarmingham/throughline/blob/main/docs/manual.md"
+              >Manual</a
+            >
+            <a href="https://github.com/DanielCarmingham/throughline/blob/main/docs/method.md"
+              >The practice, in full</a
+            >
+          </p>
+        </div>
       </div>
     </section>
 
     <footer class="footer">
       <div class="wrap footer__inner">
         <p class="footer__mark">tlflow.cc</p>
+        <p class="footer__links">
+          <a href="https://github.com/DanielCarmingham/throughline">GitHub</a>
+          <a href="https://github.com/DanielCarmingham/throughline/blob/main/docs/manual.md">Manual</a>
+          <a href="https://github.com/DanielCarmingham/throughline/blob/main/LICENSE">MIT</a>
+        </p>
         <p class="footer__tag">Learn in cycles. Move in a line.</p>
       </div>
     </footer>
@@ -364,6 +392,45 @@ const vocabulary = [
       grid-template-columns: 1fr;
       gap: 0.4rem;
     }
+  }
+
+  /* --- getting it ----------------------------------------------- */
+  .get {
+    margin-top: 2.5rem;
+    max-width: 46rem;
+  }
+
+  .get__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.75rem;
+    margin: 1.25rem 0 0;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    letter-spacing: 0.06em;
+  }
+
+  .get__links a,
+  .footer__links a {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    padding-bottom: 0.15rem;
+    transition: border-color 0.15s ease;
+  }
+
+  .get__links a:hover,
+  .footer__links a:hover {
+    border-bottom-color: var(--accent);
+  }
+
+  .footer__links {
+    display: flex;
+    gap: 1.5rem;
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
   }
 
   /* --- footer --------------------------------------------------- */
