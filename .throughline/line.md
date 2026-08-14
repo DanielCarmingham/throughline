@@ -47,10 +47,11 @@
       → Seven MCP tools over stdio, verified against real JSON-RPC. Two defects the unit tests could not see: the server introduced itself as rmcp (from_build_env expands CARGO_CRATE_NAME inside the SDK), and instructions came through empty because the const was never wired up. Async runtime costs 4.8MB release.
 - [x] rename the binary to tlflow  ^paa  @commit(olormkwqzmoq)
       → tl was shadowed by oh-my-zsh's tmux plugin (alias tl='tmux list-sessions') and the crate name is taken on crates.io by a package with 4M downloads, so it was never publishable. Package is now throughline, binary tlflow. Results recorded before this point still say tl — that is what the tool was called at the time, and history is not rewritten to match the present.
+- [x] user-authored themes  ^a67  @commit(vvokmtvztmvt)
+      TOML theme files overriding the 13 semantic tokens, with a base to inherit from. Must reject unknown token names — a typo that silently does nothing is worse than an error.
+      → TOML themes over a dark/light base, overriding only named tokens; unknown names rejected. The token layer made it a drop-in as the spec predicted. Found and fixed --color always producing no colour when piped — the same bug class as --glyphs, which I had fixed without checking for its twin.
 
 ── NOW ──
 
-- [ ] user-authored themes  ^a67
-      TOML theme files overriding the 13 semantic tokens, with a base to inherit from. Must reject unknown token names — a typo that silently does nothing is worse than an error.
 - [ ] publish tlflow as a released binary  ^hky
       Cross-compiled binaries per platform, plus an install path that is not cargo build.

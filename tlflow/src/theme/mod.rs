@@ -37,21 +37,34 @@ pub enum Depth {
 }
 
 impl Variant {
+    /// Resolve without asking the terminal anything.
+    pub fn from_name(name: Option<&str>) -> Option<Variant> {
+        match name {
+            Some("light") => Some(Variant::Light),
+            Some("dark") => Some(Variant::Dark),
+            _ => None,
+        }
+    }
+
+    /// Ask the terminal for its background via OSC 11.
+    ///
+    /// This writes an escape sequence and waits for a reply, so it must only
+    /// run when colour is actually going to be used and stdout is a terminal.
+    /// Doing it unconditionally cost every piped invocation a round trip and
+    /// leaked `]11;?` into terminals that do not answer.
+    pub fn detect() -> Variant {
+        match terminal_light::luma() {
+            Ok(l) if l > 0.5 => Variant::Light,
+            _ => Variant::Dark,
+        }
+    }
+
     pub fn resolve(flag: Option<&str>, cfg: &Config) -> Variant {
         let named = flag
             .map(str::to_string)
             .or_else(|| std::env::var("TL_THEME").ok())
             .or_else(|| cfg.theme.clone());
-        match named.as_deref() {
-            Some("light") => Variant::Light,
-            Some("dark") => Variant::Dark,
-            // Ask the terminal for its background (OSC 11) and fall back to
-            // dark, which is the safer guess when the query times out.
-            _ => match terminal_light::luma() {
-                Ok(l) if l > 0.5 => Variant::Light,
-                _ => Variant::Dark,
-            },
-        }
+        Variant::from_name(named.as_deref()).unwrap_or_else(Variant::detect)
     }
 }
 
@@ -253,6 +266,12 @@ impl Theme {
 
     pub fn variant(&self) -> Variant {
         self.variant
+    }
+
+    /// Same theme at a different colour depth, keeping any user overrides.
+    /// The TUI always draws in truecolour even when stdout was piped.
+    pub fn with_depth(&self, depth: Depth) -> Theme {
+        Theme { depth, ..self.clone() }
     }
 
     /// Flip between the built-in variants, keeping any user overrides. A theme
@@ -625,5 +644,30 @@ mod theme_file_tests {
         write(d.path(), "mine", "[tokens]\nnow = \"#268bd2\"\n");
         let t = Theme::load("mine", Depth::Ansi16, d.path()).unwrap();
         assert!(!matches!(t.style(Token::Now).fg, Some(Color::Rgb(_, _, _))));
+    }
+}
+
+#[cfg(test)]
+mod depth_tests {
+    use super::*;
+
+    #[test]
+    fn with_depth_keeps_user_overrides() {
+        // The TUI re-derives the theme at truecolour depth; doing that by
+        // constructing a fresh Theme would silently drop a user theme.
+        let d = tempfile::tempdir().unwrap();
+        let td = d.path().join(".throughline/themes");
+        std::fs::create_dir_all(&td).unwrap();
+        std::fs::write(td.join("mine.toml"), "[tokens]\nnow = \"#268bd2\"\n").unwrap();
+
+        let piped = Theme::load("mine", Depth::None, d.path()).unwrap();
+        assert_eq!(piped.style(Token::Now).fg, None, "no colour when depth is None");
+
+        let tui = piped.with_depth(Depth::True);
+        assert_eq!(
+            tui.style(Token::Now).fg,
+            Some(Color::Rgb(0x26, 0x8b, 0xd2)),
+            "override must survive the depth change"
+        );
     }
 }

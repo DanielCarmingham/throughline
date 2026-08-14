@@ -237,7 +237,18 @@ fn resolve_theme(
         .or_else(|| cfg.theme.clone());
     match named {
         Some(name) => Theme::load(&name, depth, root).map_err(|e| anyhow!(e)),
-        None => Ok(Theme::new(Variant::resolve(None, cfg), depth)),
+        None => {
+            // Only ask the terminal for its background when colour is actually
+            // going to be used. OSC 11 writes an escape sequence and waits for
+            // a reply; doing that on every piped run is a wasted round trip
+            // and leaves visible junk in terminals that never answer.
+            let variant = if depth == Depth::None {
+                Variant::Dark
+            } else {
+                Variant::detect()
+            };
+            Ok(Theme::new(variant, depth))
+        }
     }
 }
 
@@ -451,7 +462,10 @@ pub fn run(cli: Cli) -> Result<i32> {
     }
 
     let depth = Depth::resolve(force_colour, is_tty);
+    // Resolved once. The TUI always draws in truecolour, but must not trigger
+    // a second terminal query, so it clones the same resolution.
     let theme = resolve_theme(cli.theme.as_deref(), &cfg, depth, &root)?;
+    let tui_theme = theme.with_depth(Depth::True);
     let ctx = Ctx {
         glyphs: Glyphs::for_mode(Mode::resolve(cli.glyphs.as_deref(), &cfg, is_tty)),
         theme,
@@ -511,10 +525,9 @@ pub fn run(cli: Cli) -> Result<i32> {
                 ));
             }
             let mode = Mode::resolve(cli.glyphs.as_deref(), &cfg, is_tty);
-            // Validate the theme before entering the alternate screen, so a
-            // bad name is a plain error rather than a flash of raw terminal.
-            let theme = resolve_theme(cli.theme.as_deref(), &cfg, Depth::True, &root)?;
-            crate::tui::launch(line, cfg, &path, mode, theme)?;
+            // Reuse the theme already resolved above: resolving again would
+            // send a second OSC 11 query for no reason.
+            crate::tui::launch(line, cfg, &path, mode, tui_theme)?;
             return Ok(0);
         }
         _ => 0..line.entries.len(),

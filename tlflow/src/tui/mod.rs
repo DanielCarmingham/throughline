@@ -10,7 +10,7 @@ use crate::theme::{Theme, Token};
 #[cfg(test)]
 use crate::theme::{Depth, Variant};
 use crate::view;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
@@ -22,6 +22,22 @@ use std::path::Path;
 const HELP: &str = "j/k move · J/K reorder · n Now · space advance · a add · s sharpen \
                     · m mark · d drop · [/] window · / search · t theme · ? help · q quit";
 
+/// Restore the terminal before anything is printed.
+///
+/// A panic inside the alternate screen writes its message to that screen,
+/// which the terminal then discards on restore — so the program appears to
+/// flash and vanish with no explanation. This hook tears the screen down
+/// first, so whatever went wrong is readable on the normal screen.
+fn install_panic_hook() {
+    let original = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let _ = disable_raw_mode();
+        let _ = crossterm::execute!(std::io::stdout(), LeaveAlternateScreen);
+        eprintln!("tlflow: the terminal UI crashed. This is a bug.");
+        original(info);
+    }));
+}
+
 pub fn launch(
     line: ProjectLine,
     cfg: Config,
@@ -29,6 +45,7 @@ pub fn launch(
     mode: Mode,
     theme: Theme,
 ) -> Result<()> {
+    install_panic_hook();
     enable_raw_mode()?;
     let mut out = std::io::stdout();
     crossterm::execute!(out, EnterAlternateScreen)?;
@@ -40,10 +57,12 @@ pub fn launch(
 
     let result = run_loop(&mut term, &mut app, &glyphs, path);
 
+    // Restore unconditionally, before returning any error, so the message is
+    // printed to a working terminal rather than to a screen about to vanish.
     disable_raw_mode()?;
     crossterm::execute!(term.backend_mut(), LeaveAlternateScreen)?;
     term.show_cursor()?;
-    result
+    result.context("while running the terminal UI")
 }
 
 fn run_loop<B: Backend>(
@@ -56,7 +75,8 @@ fn run_loop<B: Backend>(
         let theme = app.theme.clone();
         term.draw(|f| draw(f, app, glyphs, &theme))?;
 
-        if let Event::Key(k) = event::read()? {
+        let ev = event::read().context("reading a terminal event")?;
+        if let Event::Key(k) = ev {
             if k.kind != KeyEventKind::Press {
                 continue;
             }
@@ -82,7 +102,8 @@ fn run_loop<B: Backend>(
         }
 
         if app.dirty {
-            crate::format::io::write_atomic(path, &app.line)?;
+            crate::format::io::write_atomic(path, &app.line)
+                .with_context(|| format!("saving {}", path.display()))?;
             app.dirty = false;
         }
     }
@@ -179,5 +200,31 @@ mod tests {
         assert!(text.contains("[x]"), "ribbon missing from: {text}");
         assert!(text.contains("^bbb"), "window list missing titles");
         assert!(text.contains("q quit"), "status bar missing");
+    }
+}
+
+#[cfg(test)]
+mod real_line_tests {
+    use super::*;
+    use ratatui::backend::TestBackend;
+
+    /// Draw the project's ACTUAL line — 20+ items with long results — at many
+    /// terminal sizes. The other draw test uses a four-entry fixture, which is
+    /// not representative of anything real.
+    #[test]
+    fn draws_the_real_project_line_at_many_sizes() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../.throughline/line.md");
+        let Ok(line) = crate::format::io::read(std::path::Path::new(path)) else {
+            eprintln!("no project line to test against; skipping");
+            return;
+        };
+        for (w, h) in [(80, 24), (120, 40), (60, 20), (40, 12), (30, 8), (20, 6), (12, 4)] {
+            let mut term = Terminal::new(TestBackend::new(w, h)).unwrap();
+            let app = app::App::new(line.clone(), Config::default());
+            let theme = Theme::new(crate::theme::Variant::Dark, crate::theme::Depth::True);
+            let glyphs = Glyphs::for_mode(Mode::Unicode);
+            term.draw(|f| draw(f, &app, &glyphs, &theme))
+                .unwrap_or_else(|e| panic!("draw failed at {w}x{h}: {e}"));
+        }
     }
 }
