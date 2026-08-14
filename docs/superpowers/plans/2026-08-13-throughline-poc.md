@@ -3326,7 +3326,7 @@ Add to the `Command` enum in `tl/src/cli/mod.rs`:
     },
     /// Promote children onto the line
     Split { id: String },
-    /// Lint the line against the method
+    /// Lint the line against the practice
     Check,
     /// Normalize derived content
     Fmt,
@@ -3349,7 +3349,7 @@ fn placement(
         (_, _, true) => Ok(Position::End),
         _ => Err(anyhow!(
             "placement is required: pass --after, --before, or --end. \
-             Choosing where work goes is the thinking the method asks for."
+             Choosing where work goes is the thinking the practice asks for."
         )),
     }
 }
@@ -4541,7 +4541,8 @@ fn the_agent_stanza_names_the_commands_and_the_discipline() {
     let d = tempfile::tempdir().unwrap();
     tl(d.path()).arg("init").assert().success();
     let text = std::fs::read_to_string(d.path().join("AGENTS.md")).unwrap();
-    for needle in ["tl window", "tl add", "tl advance", "tl check", "behind Now"] {
+    for needle in ["tl window", "tl add", "tl advance", "tl check", "behind Now",
+                   "what does that change"] {
         assert!(text.contains(needle), "AGENTS.md is missing {needle}");
     }
 }
@@ -4616,18 +4617,22 @@ use std::path::Path;
 const THROUGHLINE_MD: &str = "\
 # Throughline
 
-This project is managed as one ordered line running from past, through Now,
-into the future. `.throughline/line.md` is that line.
+*Learn in cycles. Move in a line.*
+
+A practice of continuous inquiry and forward flow. Work lives on one ordered
+line running from past, through Now, into the future. `.throughline/line.md`
+is that line.
 
 - **Status is position.** Done is not a flag, it is a location: behind Now.
 - **Markers are landmarks, not buckets.** \"After launch\" is a place on the
   line, not a container.
 - **The Window is a view.** Now is stored; the window is wherever you look.
 - **Planning is progressive.** Detail decreases with distance from Now.
+- **Inquiry decides what comes next.** What happened, and what does that change?
 
-Vocabulary: the Line, Now, the Window. Move it forward on the Line. That is
-outside the current Window. Do not create a post-launch bucket — put it after
-launch.
+Vocabulary: Practice, the Line, Flow, the Window, Inquiry, Cycles, Now. Move it
+forward on the Line. That is outside the current Window. Do not create a
+post-launch bucket — put it after launch.
 ";
 
 const AGENTS_MD: &str = "\
@@ -4641,11 +4646,15 @@ record.
 - `tl now --json` — the next item ahead of Now
 - `tl add \"title\" --after <ref>` — placement is required; there is no backlog
 - `tl advance --result \"what happened\"` — completion moves Now forward
-- `tl check` — lint the line against the method before finishing
+- `tl check` — lint the line against the practice before finishing
 
 Completion is position, not state: an item is done when it sits **behind Now**.
-Record what actually happened with `--result`; that is where the project keeps
+Record what actually happened with `--result`; that is where the practice keeps
 what it learned.
+
+Then ask the question that moves things: **what does that change?** Act on the
+answer by editing the line ahead — `tl move`, `tl add`, `tl drop`. A result that
+changes nothing was not worth recording.
 ";
 
 pub fn scaffold(root: &Path) -> Result<()> {
@@ -5024,8 +5033,9 @@ from spec sections 2 and 3; do not invent new claims.
 | 11 | Status is position | one item crossing Now, before and after | hand-drawn |
 | 12 | Markers are landmarks | `markers-after-launch` | generated |
 | 13 | The Window is a view | `window-is-a-view` | generated |
-| 14 | The central inversion | Kanban's moving cards beside "you are here" | hand-drawn |
-| 15 | Using `tl` | the ribbon above the window list | hand-drawn |
+| 14 | Inquiry | the five questions, the fifth reshaping the line ahead | hand-drawn |
+| 15 | The central inversion | Kanban's moving cards beside "you are here" | hand-drawn |
+| 16 | Using `tl` | the ribbon above the window list | hand-drawn |
 
 Paste the generated blocks from `/tmp/tl-diagrams.md` verbatim into their
 sections — including the `<!-- diagram: name -->` comment, which marks them as
@@ -5043,7 +5053,7 @@ Expected: PASS, 5 tests.
 
 ```bash
 git add docs/method.md
-git commit -m "docs: the Throughline Method, with generated and hand-drawn diagrams"
+git commit -m "docs: the Throughline practice, with generated and hand-drawn diagrams"
 ```
 
 ---

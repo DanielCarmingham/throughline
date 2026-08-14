@@ -5,27 +5,38 @@
 
 ## 1. Summary
 
-Throughline is a project-management method in which a project is represented as
-one ordered line running from past, through Now, into the future. This document
-specifies a proof of concept: a written description of the method, and `tl`, a
-combined CLI and TUI tool that manages a project's line.
+Throughline is **a practice of continuous inquiry and forward flow**, in which
+work is represented as one ordered line running from past, through Now, into
+the future. Its tagline: *Learn in cycles. Move in a line.*
+
+Deliberately **not** a project-management methodology. "Method" implies follow
+these steps; "framework" implies here are the structures; "project management"
+implies control the project. This is a way of engaging with work over time —
+observe, try something, learn, adjust, continue. Medicine is a practice, science
+is a practice; you get better at one by doing it and you never complete it. Real
+product work has no clean beginning and end either, so the practice does not
+pretend to manage a thing that terminates.
+
+This document specifies a proof of concept: a written description of the
+practice, and `tl`, a combined CLI and TUI tool that manages a line.
 
 The POC has three deliverables:
 
-1. `docs/method.md` — the Throughline Method, described thoroughly.
+1. `docs/method.md` — the practice, described thoroughly.
 2. `tl` — a single Rust binary providing both a CLI and a TUI.
 3. `.throughline/line.md` — the line for building Throughline itself, so the
    tool manages its own construction from the first commit.
 
 ## 2. Background
 
-The method originates from a sketch (`initial-sketch-chat.pdf`) that observes:
-work happens over time, so organize it that way. Most project-management systems
-organize work by state — backlog, ready, doing, blocked, done, someday, v2 —
-which produces buckets that quietly mean "not now." Throughline makes sequence
-the primary organizing principle instead.
+The practice originates from two sketches — `initial-sketch-chat.pdf`, which
+establishes the model, and `Throughline Practice.pdf`, which settles the naming
+and adds Inquiry. The founding observation: work happens over time, so organize
+it that way. Most systems organize work by state — backlog, ready, doing,
+blocked, done, someday, v2 — which produces buckets that quietly mean "not now."
+Throughline makes sequence the primary organizing principle instead.
 
-The sketch establishes ten properties. Restated compactly:
+The first sketch establishes ten properties. Restated compactly:
 
 1. **The project is a line.** Completed work becomes history rather than
    accumulating in a Done column. Future work sits ahead of the present in the
@@ -51,12 +62,30 @@ The sketch establishes ten properties. Restated compactly:
     window, limited hierarchy, and lightweight metadata. Everything else must
     justify its existence.
 
-Naming, per the sketch: the method is **Throughline**; the core abstraction is
-**the Line**; the current focus area is **the Window**.
+### 2.1 Vocabulary
+
+Seven words carry the practice. They are terms of art and must be used
+consistently across the tool, the document, and the site.
+
+| term | meaning |
+|---|---|
+| **Practice** | the whole of it; you get better by doing it and never complete it |
+| **the Line** | the ordered continuity of work through time |
+| **Flow** | movement along the Line; one direction, forward |
+| **the Window** | the current field of attention |
+| **Inquiry** | the learning that decides what comes next |
+| **Cycles** | repeated experiments, unrolled onto the Line |
+| **Now** | the moving boundary between observation and intention |
+
+Name: **Throughline**. Domain: **tlflow.cc**. Tagline: *Learn in cycles. Move in
+a line.* Description: *a practice of continuous inquiry and forward flow.*
+
+The logo reads as the practice states it: the curve is Inquiry, the arrow is
+Flow, neither dominates.
 
 ## 3. Design principles added by this spec
 
-The sketch describes the model. These three claims make it mechanical — things a
+The sketches describe the model. These four claims make it mechanical — things a
 tool can enforce rather than merely encourage.
 
 ### 3.1 Status is position
@@ -88,6 +117,36 @@ Now is stored. The Window is derived from wherever the user is looking. This is
 what makes property 4 ("any slice tells a story") free rather than a feature: a
 slice is just a different view over the same ordered data.
 
+### 3.4 Inquiry is the loop, and it needs no new field
+
+Inquiry is the learning that decides what comes next. The unit of progress is
+not a completed task but something learned. Each pass asks five questions:
+
+1. What do we know?
+2. What do we need to learn?
+3. What should we try next?
+4. What happened?
+5. What does that change?
+
+**Decision: Inquiry adds no field to the data model.** The tool already
+expresses it:
+
+| question | where it lives |
+|---|---|
+| what should we try next | position on the Line — the item ahead of Now |
+| what happened | the item's `result` (5.3) |
+| what does that change | `tl move`, `tl add`, `tl drop` — the Line ahead is edited |
+
+The fifth question is the one that moves things, and its answer is *a changed
+Line*, not a stored sentence. A `changed:` field would record an intention the
+ordering already states, and the two would drift — the same failure `status is
+position` (3.1) exists to prevent.
+
+What the tool owes Inquiry is a **prompt, not a field**: after `tl advance` or
+`tl done` records a result, it prints "What does that change?" with the three
+verbs that answer it. That keeps the loop visible at the moment it applies
+without inventing state.
+
 ## 4. Architecture
 
 ### 4.1 Approach: file-first, tool-as-lens
@@ -99,7 +158,7 @@ The rejected alternative is tool-first, where `tl` owns all writes and the file
 is an export. That buys write safety but costs the property that makes this
 useful to coding agents: an agent can read one file and hold the entire project
 — plan, queue, and history — in a single read. This is not merely convenient; it
-is the method's own claim that plan, queue, and record are the same artifact,
+is the practice's own claim that plan, queue, and record are the same artifact,
 made literal.
 
 Consequences of file-first:
@@ -156,14 +215,14 @@ tl/
 
 ### 4.4 Revision-control affinity: git and jj
 
-Jujutsu (`jj`) shares this method's central commitments to an unusual degree,
+Jujutsu (`jj`) shares this practice's central commitments to an unusual degree,
 and the resemblance is load-bearing in one place and useful prior art in
 several others. Verified against jj 0.44.0.
 
 **Load-bearing: `@commit(rev)` prefers jj change IDs.**
 
 A git SHA is not a stable identifier. The moment a linked commit is rebased,
-amended, or squashed, an item behind Now points at nothing — and a method that
+amended, or squashed, an item behind Now points at nothing — and a practice that
 claims history is first-class cannot have its history links rot. A jj **change
 ID** is a property of the change rather than of a particular commit object, and
 survives rewriting. Therefore: when `.jj` is present, `tl` records change IDs;
@@ -256,7 +315,7 @@ re-proposed mid-build.
 
 A description is written ahead of Now and states intent. A result is written
 behind Now and states outcome. They are the same field seen from opposite sides
-of Now, which is the method's past/future symmetry (sketch property 4) applied to
+of Now, which is the practice's past/future symmetry (sketch property 4) applied to
 a single item.
 
 This is borrowed from `dex`, whose `result` field is straightforwardly better
@@ -285,7 +344,7 @@ introduced.
 
 ## 6. CLI surface
 
-Verbs are the method's vocabulary. Every read command accepts `--json`.
+Verbs are the practice's vocabulary. Every read command accepts `--json`.
 
 | command | purpose |
 |---|---|
@@ -302,7 +361,7 @@ Verbs are the method's vocabulary. Every read command accepts `--json`.
 | `tl mark "<label>" --after <ref>` | place a landmark |
 | `tl split <id>` | promote children onto the line |
 | `tl sharpen <id>` | add or edit an item's body |
-| `tl check` | lint the line against the method |
+| `tl check` | lint the line against the practice |
 | `tl fmt` | normalize derived content |
 | `tl plan <file>` | seed a line from a plan document |
 | `tl init` | create `.throughline/`, method summary, agent stanza |
@@ -317,9 +376,13 @@ moves the Now marker; `done` moves an item. Neither writes a completion field,
 because there isn't one. `advance` records an outcome for each item it passes,
 defaulting to done.
 
+After recording a result, both print the Inquiry prompt (3.4): "What does that
+change?" followed by `tl move`, `tl add`, `tl drop`. Suppressed by `--json` and
+whenever stdout is not a TTY, so it never pollutes machine-readable output.
+
 ### 6.1 `tl check` lints
 
-`tl check` is what makes the method enforceable rather than aspirational, and is
+`tl check` is what makes the practice enforceable rather than aspirational, and is
 the primary agent-facing feature. It exits non-zero when any lint fires.
 
 | lint | condition |
@@ -349,7 +412,7 @@ defaults to 3. All three are configurable in `.throughline/config.toml`.
 
 `tl init` writes:
 
-- `THROUGHLINE.md` — a short summary of the method and the vocabulary.
+- `THROUGHLINE.md` — a short summary of the practice and the vocabulary.
 - An `AGENTS.md` stanza describing the commands and the discipline, so coding
   agents adopt the vocabulary without being instructed each session.
 
@@ -403,7 +466,7 @@ Design constraints on the glyph set:
   `circle_large` (U+EBB5), which match in size. The smaller `cod-circle`
   (U+EABC) would make items visibly jitter as they cross Now.
 - **`cod-git_branch` is deliberately excluded.** A branch glyph contradicts the
-  one-line metaphor at exactly the point where the method insists children do
+  one-line metaphor at exactly the point where the practice insists children do
   not get their own position. `list_unordered` correctly says "checklist inside
   this item."
 - **The ribbon rule stays Unicode `─` in all modes.** `cod-horizontal_rule`
@@ -451,7 +514,7 @@ One screen at two zoom levels.
 
 - **Top — the ribbon.** The whole project as a horizontal line of glyphs, with
   Now marked and the Window drawn as a bracket. This is the zoom-out view and
-  the visual expression of the method.
+  the visual expression of the practice.
 - **Below — the window list.** Vertical, with readable titles and bodies for the
   items inside the bracket. This is the zoom-in view.
 - Scrolling the list slides the bracket on the ribbon.
@@ -483,7 +546,7 @@ to understand a period" as an interface rather than a slogan.
 
 ### 9.1 Diagrams are a requirement, not decoration
 
-The sketch communicates the method almost entirely through left-to-right ASCII
+The sketches communicate the practice almost entirely through left-to-right ASCII
 diagrams, and that is why it reads well: the central claim is spatial, so prose
 alone under-argues it. `docs/method.md` must carry a diagram for every structural
 claim it makes.
@@ -506,14 +569,15 @@ Carried forward from the sketch:
 | 10 | detail density fading with distance | planning is progressive |
 | 11 | Kanban's moving cards vs. "you are here" | the central inversion |
 
-Added by this design (sections 3.1–3.3):
+Added by this design (sections 3.1–3.4):
 
 | # | diagram | claim it argues |
 |---|---|---|
 | 12 | one item crossing Now, before and after | status is position |
 | 13 | work placed after a `launch` marker | markers are landmarks, not buckets |
 | 14 | two readers viewing different spans of one line | the Window is a view |
-| 15 | the ribbon above the window list | the TUI's two zoom levels |
+| 15 | the five questions, the fifth reshaping the line ahead | Inquiry decides what comes next |
+| 16 | the ribbon above the window list | the TUI's two zoom levels |
 
 ### 9.3 Diagrams and the renderer share one vocabulary
 
@@ -524,7 +588,7 @@ language, not two.
 
 Unicode rather than ascii, because a document is not terminal-constrained the way
 a running TUI is, and the sketch demonstrates that these shapes are most of what
-makes the method legible. The ascii set exists for degraded terminals and piped
+makes the practice legible. The ascii set exists for degraded terminals and piped
 output, not for prose.
 
 Diagrams 1, 4, 5, 8, 9, 13, and 14 are *line-shaped*: they depict real line
@@ -532,7 +596,7 @@ states and are therefore **generated from fixture lines by `tl` itself**, using
 the golden-snapshot machinery already required by section 10. The document
 cannot drift from the tool's actual output, because the output is the document.
 
-The remaining diagrams (2, 3, 6, 7, 10, 11, 12, 15) are conceptual or
+The remaining diagrams (2, 3, 6, 7, 10, 11, 12, 15, 16) are conceptual or
 comparative — a PDSA circle, a Kanban board, a before/after pair — and are
 hand-drawn. They are checked by review, not by tests.
 
@@ -554,7 +618,7 @@ Test-driven throughout.
 
 **In scope for the POC:**
 
-- `docs/method.md`, written thoroughly, carrying all fifteen diagrams in section
+- `docs/method.md`, written thoroughly, carrying all sixteen diagrams in section
   9.2 — the seven line-shaped ones generated from fixtures by `tl`.
 - `tl` with the command surface in section 6, the presentation layer in section
   7, and the TUI in section 8.
@@ -580,7 +644,7 @@ Test-driven throughout.
 
 - **Archiving completed work** (as in `dex archive --older-than`). Sketch
   property 8 is that old work is not clutter, it is farther away. An archive is
-  a bucket that history disappears into, which is the failure mode the method
+  a bucket that history disappears into, which is the failure mode the practice
   exists to avoid.
 
 ## 12. Open questions
