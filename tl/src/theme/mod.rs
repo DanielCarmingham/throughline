@@ -243,8 +243,7 @@ mod tests {
 
     #[test]
     fn a_flag_beats_config_for_the_variant() {
-        let mut cfg = Config::default();
-        cfg.theme = Some("dark".into());
+        let cfg = Config { theme: Some("dark".into()), ..Default::default() };
         assert_eq!(Variant::resolve(Some("light"), &cfg), Variant::Light);
     }
 
