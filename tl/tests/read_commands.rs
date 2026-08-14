@@ -146,3 +146,15 @@ fn a_malformed_line_file_reports_the_line_number() {
         .failure()
         .stderr(predicates::str::contains("line.md:5"));
 }
+
+#[test]
+fn launching_the_tui_without_a_terminal_says_what_to_do_instead() {
+    // Piped or in CI, crossterm fails with a bare errno. The message should
+    // point at the non-interactive commands rather than an OS error number.
+    let d = fixture();
+    tl(d.path())
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("needs a terminal"))
+        .stderr(predicates::str::contains("tl line"));
+}

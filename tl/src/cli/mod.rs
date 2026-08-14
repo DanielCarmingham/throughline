@@ -448,7 +448,15 @@ pub fn run(cli: Cli) -> Result<i32> {
             return Ok(0);
         }
         None => {
-            // No subcommand: open the TUI.
+            // No subcommand: open the TUI. Without a terminal, crossterm fails
+            // with a bare errno, so say what to do instead.
+            if !is_tty || !std::io::stdin().is_terminal() {
+                return Err(anyhow!(
+                    "the TUI needs a terminal. For non-interactive use try \
+                     `tl line`, `tl window` or `tl now` — add --json for a \
+                     machine-readable form."
+                ));
+            }
             let mode = Mode::resolve(cli.glyphs.as_deref(), &cfg, is_tty);
             let variant = Variant::resolve(cli.theme.as_deref(), &cfg);
             crate::tui::launch(line, cfg, &path, mode, variant)?;
