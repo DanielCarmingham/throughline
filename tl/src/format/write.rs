@@ -74,7 +74,6 @@ fn render_item(item: &Item, behind_now: bool) -> String {
 mod tests {
     use super::*;
     use crate::format::parse;
-    use crate::model::*;
 
     const SAMPLE: &str = "\
 # Throughline — Test

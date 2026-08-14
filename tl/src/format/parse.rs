@@ -183,7 +183,6 @@ pub fn parse(src: &str) -> Result<Line, ParseError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::*;
 
     const SAMPLE: &str = "\
 # Throughline — Test
