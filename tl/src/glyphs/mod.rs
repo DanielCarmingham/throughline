@@ -142,8 +142,10 @@ fn ascii(role: Role) -> &'static str {
         Role::History => "<<",
         Role::ZoomOut => "-",
         Role::Search => "/",
-        Role::WindowLeft => "[",
-        Role::WindowRight => "]",
+        // Not [ and ] — those collide with the [x] / [ ] item glyphs and the
+        // window bracket becomes invisible in the one mode humans review.
+        Role::WindowLeft => "{",
+        Role::WindowRight => "}",
         Role::Rule => "-",
     }
 }

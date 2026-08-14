@@ -456,7 +456,8 @@ Additional nerdfont-only decoration: the Window bracket in the ribbon uses
 `ple-left_half_circle_thick` U+E0B6 and `ple-right_half_circle_thick` U+E0B4 so
 the window renders as a rounded pill riding the line; the status bar uses
 `pl-left_hard_divider` U+E0B0. In unicode and ascii modes the bracket uses
-`┌ ┐` and `[ ]` respectively.
+`┌ ┐` and `{ }` respectively — not `[ ]`, which collides with the item
+glyphs and renders the bracket invisible.
 
 Design constraints on the glyph set:
 

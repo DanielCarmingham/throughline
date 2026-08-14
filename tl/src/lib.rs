@@ -6,3 +6,4 @@ pub mod glyphs;
 pub mod theme;
 pub mod check;
 pub mod cli;
+pub mod tui;
