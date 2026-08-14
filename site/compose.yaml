@@ -1,0 +1,7 @@
+services:
+  tlflow:
+    build: .
+    image: tlflow:latest
+    ports:
+      - tlflow.cc:80/https
+      - www.tlflow.cc:80/https
