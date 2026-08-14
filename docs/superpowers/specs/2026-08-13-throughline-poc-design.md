@@ -154,6 +154,41 @@ tl/
 - `theme` and `glyphs` are pure lookups; `tui` consumes both and may not
   construct a colour or a literal glyph itself.
 
+### 4.4 Revision-control affinity: git and jj
+
+Jujutsu (`jj`) shares this method's central commitments to an unusual degree,
+and the resemblance is load-bearing in one place and useful prior art in
+several others. Verified against jj 0.44.0.
+
+**Load-bearing: `@commit(rev)` prefers jj change IDs.**
+
+A git SHA is not a stable identifier. The moment a linked commit is rebased,
+amended, or squashed, an item behind Now points at nothing — and a method that
+claims history is first-class cannot have its history links rot. A jj **change
+ID** is a property of the change rather than of a particular commit object, and
+survives rewriting. Therefore: when `.jj` is present, `tl` records change IDs;
+otherwise it falls back to git SHAs and accepts that they are best-effort.
+
+**Prior art to match rather than reinvent:**
+
+| jj | Throughline |
+|---|---|
+| `@`, the working-copy commit — "you are here" | Now |
+| `jj rebase -A/--insert-after`, `-B/--insert-before` | `tl move --after` / `--before` |
+| revsets `a..b` | `tl slice <ref>..<ref>` |
+| change IDs stable across rewrite | `^k3f` ids stable across reordering |
+| `jj op log` — every state change, recoverable | git/jj history of `line.md` |
+
+Where jj has already settled a naming or semantic question, `tl` should adopt
+its answer. `--after`/`--before` and `a..b` were arrived at independently in
+section 6; matching jj's exact semantics costs nothing and buys familiarity for
+anyone who uses both.
+
+**Explicitly not in the POC:** deriving the past portion of the line from
+`jj log`, or mapping items onto jj changes. The correspondence is a vocabulary
+and an identifier choice, not an integration. Named here so it is not
+re-proposed mid-build.
+
 ## 5. File format
 
 ### 5.1 Example
@@ -164,7 +199,11 @@ tl/
 ## Line
 
 - [x] Sketch the method  ^k3f
-- [x] Pick the name  ^m2a
+      → Ten properties. The window and past/future-symmetry ideas are the
+        original ones; the rest restate known practice.
+- [x] Pick the name  ^m2a  @commit(88ca65b)
+      → "Linear PM" collides with waterfall. Throughline avoids it and
+        names what is actually novel.
 
 ── NOW ──
 
@@ -207,8 +246,33 @@ tl/
   6 unrepresentable-if-violated rather than merely discouraged.
 - **Exceptional metadata** is inline and rare: `@blocked(reason)`,
   `@dropped(reason)`, `@active`. No other status vocabulary exists.
+- **Results** record what actually happened. A result is a line inside an item's
+  indented block beginning with `→` (canonical) or `->` (accepted on read),
+  continuing across further-indented lines.
+- **Commit links** attach a revision to an item behind Now via `@commit(rev)` on
+  the title line.
 
-### 5.3 Progressive detail requires no syntax
+### 5.3 Description and result are the past/future pair
+
+A description is written ahead of Now and states intent. A result is written
+behind Now and states outcome. They are the same field seen from opposite sides
+of Now, which is the method's past/future symmetry (sketch property 4) applied to
+a single item.
+
+This is borrowed from `dex`, whose `result` field is straightforwardly better
+than the checkmark this spec previously gave a completed item. A method whose
+sketch says "the loop is how we learn" needs somewhere to put what was learned.
+
+Rules:
+
+- Only items behind Now may carry a result; `tl check` lints otherwise.
+- A dropped item may carry both `@dropped(reason)` and a result.
+- Results are written by `tl advance --result`, `tl done --result`, and
+  `tl drop --result`, or by hand.
+- The `false-certainty` lint counts description lines only. Results are history,
+  and history is allowed to be as detailed as it likes.
+
+### 5.4 Progressive detail requires no syntax
 
 Detail level is derived: a bare title is coarse, a title with a body is
 sharpened. Far-future items are naturally bare because nobody has written a body
@@ -232,14 +296,15 @@ Verbs are the method's vocabulary. Every read command accepts `--json`.
 | `tl slice <ref>..<ref>` | any span; back, forward, or around Now |
 | `tl add "<title>" --after <ref>` | add an item; placement is required |
 | `tl move <id> --after <ref>` | reorder — this is replanning |
-| `tl advance [<id>]` | move Now forward past the next item, or past everything up to and including `<id>` |
-| `tl done <id>` | complete an item out of order: move it to immediately behind Now |
-| `tl drop <id> --why "<reason>"` | the other outcome |
+| `tl advance [<id>] [--result "…"] [--commit <rev>]` | move Now forward past the next item, or past everything up to and including `<id>` |
+| `tl done <id> [--result "…"] [--commit <rev>]` | complete an item out of order: move it to immediately behind Now |
+| `tl drop <id> --why "<reason>" [--result "…"]` | the other outcome |
 | `tl mark "<label>" --after <ref>` | place a landmark |
 | `tl split <id>` | promote children onto the line |
 | `tl sharpen <id>` | add or edit an item's body |
 | `tl check` | lint the line against the method |
 | `tl fmt` | normalize derived content |
+| `tl plan <file>` | seed a line from a plan document |
 | `tl init` | create `.throughline/`, method summary, agent stanza |
 | `tl doctor` | re-run glyph and theme capability detection |
 
@@ -267,6 +332,7 @@ the primary agent-facing feature. It exits non-zero when any lint fires.
 | `independent-children` | a parent whose children carry `@blocked`/`@active`, suggesting they are separately trackable and belong on the line |
 | `duplicate-id` | two items sharing an id |
 | `no-now` | missing or duplicated Now marker |
+| `result-ahead` | an item ahead of Now carrying a result — outcomes belong to history |
 
 "Inside the Window" means within the default window span (`window_back` = 3,
 `window_ahead` = 7) measured from Now, not from the user's scroll position —
@@ -494,8 +560,19 @@ Test-driven throughout.
 - User-authored themes (the token layer makes this a later addition).
 - Any web, server, or sync component.
 - Multi-user or collaboration features; git is the collaboration mechanism.
-- An event log or time-travel beyond what git history provides.
+- An event log or time-travel beyond what git or jj history provides.
 - Dependencies between items. Order expresses intent, not a dependency graph.
+- Any jj integration beyond change-ID preference in `@commit(rev)` (see 4.4).
+- An MCP server. The CLI plus `--json` plus non-TTY degradation already serves
+  Claude and Codex. `model` and `view` stay free of I/O so this remains a thin
+  later addition.
+
+**Rejected outright, not merely deferred:**
+
+- **Archiving completed work** (as in `dex archive --older-than`). Sketch
+  property 8 is that old work is not clutter, it is farther away. An archive is
+  a bucket that history disappears into, which is the failure mode the method
+  exists to avoid.
 
 ## 12. Open questions
 
