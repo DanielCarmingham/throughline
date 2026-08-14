@@ -2,3 +2,6 @@
 
 # scratch
 *.tmp
+
+# dex task store — local only, IDs are ephemeral
+.dex/
