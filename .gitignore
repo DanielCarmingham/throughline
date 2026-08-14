@@ -10,3 +10,6 @@
 site/dist/
 site/.astro/
 site/node_modules/
+
+# macOS
+.DS_Store
