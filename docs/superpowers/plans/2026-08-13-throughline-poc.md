@@ -3440,3 +3440,744 @@ Expected: PASS, 14 tests.
 git add tl/
 git commit -m "feat(cli): add, move, advance, done, drop, mark, sharpen, split, fmt, check"
 ```
+
+---
+
+### Task 12: The ribbon
+
+**Files:**
+- Create: `tl/src/tui/mod.rs`, `tl/src/tui/ribbon.rs`
+- Modify: `tl/src/lib.rs` (add `pub mod tui;`), `tl/Cargo.toml` (dev-dep `insta`)
+- Test: inline `#[cfg(test)]` in `tl/src/tui/ribbon.rs`
+
+**Interfaces:**
+- Consumes: `Line`, `Entry`, `ItemState`; `Span` from Task 6; `Glyphs`, `Role` from Task 7; `Token` from Task 8.
+- Produces: `Segment { pub text: String, pub token: Token }`, `ribbon::build(&Line, Span, &Glyphs, usize) -> Vec<Segment>`, `ribbon::plain(&[Segment]) -> String`.
+
+The ribbon is built as pure data and only then handed to ratatui. That keeps the
+whole-project view testable without a terminal, and keeps the widget free of
+layout logic.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `tl/src/tui/ribbon.rs`:
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+    use crate::format::parse;
+    use crate::glyphs::{Glyphs, Mode};
+    use crate::view;
+
+    fn line(past: usize, future: usize) -> Line {
+        let mut src = String::from("# T\n\n");
+        for n in 0..past {
+            src.push_str(&format!("- [x] p{n}  ^p{n}\n"));
+        }
+        src.push_str("\n── NOW ──\n\n");
+        for n in 0..future {
+            src.push_str(&format!("- [ ] f{n}  ^f{n}\n"));
+        }
+        parse(&src).unwrap()
+    }
+
+    fn render(l: &Line, width: usize) -> String {
+        let w = view::window(l, &Config::default());
+        plain(&build(l, w, &Glyphs::for_mode(Mode::Ascii), width))
+    }
+
+    #[test]
+    fn done_work_uses_the_done_glyph_and_future_work_the_open_one() {
+        let out = render(&line(2, 2), 80);
+        assert_eq!(out.matches("[x]").count(), 2);
+        assert_eq!(out.matches("[ ]").count(), 2);
+    }
+
+    #[test]
+    fn now_appears_exactly_once_between_past_and_future() {
+        let out = render(&line(3, 3), 80);
+        assert_eq!(out.matches('|').count(), 1);
+        let now = out.find('|').unwrap();
+        assert!(out[..now].contains("[x]"));
+        assert!(out[now..].contains("[ ]"));
+    }
+
+    #[test]
+    fn the_window_is_drawn_as_a_bracket_around_the_focus() {
+        let out = render(&line(6, 12), 100);
+        let open = out.find('[').unwrap();
+        let close = out.rfind(']').unwrap();
+        assert!(open < close);
+    }
+
+    #[test]
+    fn markers_render_with_the_marker_glyph() {
+        let l = parse("# T\n\n── NOW ──\n\n◆ v1 ◆\n\n- [ ] a  ^aaa\n").unwrap();
+        assert!(render(&l, 80).contains("<>"));
+    }
+
+    #[test]
+    fn dropped_and_blocked_items_get_their_own_glyphs() {
+        let l = parse(
+            "# T\n\n- [-] a  ^aaa  @dropped(no)\n\n── NOW ──\n\n- [ ] b  ^bbb  @blocked(keys)\n",
+        )
+        .unwrap();
+        let out = render(&l, 80);
+        assert!(out.contains("[-]"));
+        assert!(out.contains('!'));
+    }
+
+    #[test]
+    fn a_line_wider_than_the_terminal_is_elided_around_now() {
+        let out = render(&line(40, 40), 40);
+        assert!(out.chars().count() <= 40, "ribbon overflowed: {out:?}");
+        assert!(out.contains("..."), "expected elision markers");
+        assert!(out.contains('|'), "Now must survive elision");
+    }
+
+    #[test]
+    fn tokens_encode_the_progressive_fade() {
+        let l = line(2, 20);
+        let w = view::window(&l, &Config::default());
+        let segs = build(&l, w, &Glyphs::for_mode(Mode::Ascii), 200);
+        assert!(segs.iter().any(|s| s.token == Token::Past));
+        assert!(segs.iter().any(|s| s.token == Token::Near));
+        assert!(segs.iter().any(|s| s.token == Token::Far));
+    }
+
+    #[test]
+    fn snapshot_of_a_typical_ribbon() {
+        insta::assert_snapshot!(render(&line(5, 9), 72));
+    }
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cargo test -p tl ribbon`
+Expected: FAIL — `cannot find function build in this scope`.
+
+- [ ] **Step 3: Write minimal implementation**
+
+Add to `tl/Cargo.toml` under `[dev-dependencies]`:
+
+```toml
+insta = "1"
+```
+
+Create `tl/src/tui/mod.rs`:
+
+```rust
+pub mod ribbon;
+```
+
+Add `pub mod tui;` to `tl/src/lib.rs`. Prepend to `tl/src/tui/ribbon.rs`:
+
+```rust
+use crate::glyphs::{Glyphs, Role};
+use crate::model::{Entry, ItemState, Line};
+use crate::theme::Token;
+use crate::view::{self, Span};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Segment {
+    pub text: String,
+    pub token: Token,
+}
+
+pub fn plain(segments: &[Segment]) -> String {
+    segments.iter().map(|s| s.text.as_str()).collect()
+}
+
+fn glyph_for(entry: &Entry, behind_now: bool, g: &Glyphs) -> (String, Role) {
+    match entry {
+        Entry::Now => (g.get(Role::Now).to_string(), Role::Now),
+        Entry::Marker(_) => (g.get(Role::Marker).to_string(), Role::Marker),
+        Entry::Item(item) => {
+            let role = match (&item.state, behind_now) {
+                (ItemState::Dropped(_), _) => Role::Dropped,
+                (ItemState::Blocked(_), _) => Role::Blocked,
+                (ItemState::Active, _) => Role::Active,
+                (_, true) => Role::Done,
+                (_, false) => Role::Open,
+            };
+            (g.get(role).to_string(), role)
+        }
+    }
+}
+
+fn token_for(line: &Line, index: usize, entry: &Entry) -> Token {
+    match entry {
+        Entry::Now => Token::Now,
+        Entry::Marker(_) => Token::Marker,
+        Entry::Item(item) => match &item.state {
+            ItemState::Dropped(_) => Token::Dropped,
+            ItemState::Blocked(_) => Token::Blocked,
+            _ => {
+                let d = view::distance_from_now(line, index);
+                if d < 0 {
+                    Token::Past
+                } else if d <= 3 {
+                    Token::Near
+                } else if d <= 10 {
+                    Token::Mid
+                } else {
+                    Token::Far
+                }
+            }
+        },
+    }
+}
+
+/// Build the whole-project ribbon. `window` is bracketed; when the line is
+/// wider than `width`, entries are dropped from the ends inward so that Now
+/// always survives.
+pub fn build(line: &Line, window: Span, g: &Glyphs, width: usize) -> Vec<Segment> {
+    let now = line.now_index();
+    let mut visible: Vec<usize> = (0..line.entries.len()).collect();
+    let mut elided_left = false;
+    let mut elided_right = false;
+
+    // Each entry costs its glyph plus one rule; brackets cost two more.
+    let cost = |ids: &[usize]| -> usize {
+        ids.iter()
+            .map(|&i| {
+                glyph_for(&line.entries[i], i < now, g).0.chars().count() + 1
+            })
+            .sum::<usize>()
+            + 4
+    };
+
+    while cost(&visible) > width && visible.len() > 1 {
+        let now_pos = visible.iter().position(|&i| i == now).unwrap_or(0);
+        // Trim from whichever side is longer, so Now stays roughly centred.
+        if now_pos >= visible.len() - now_pos - 1 {
+            visible.remove(0);
+            elided_left = true;
+        } else {
+            visible.pop();
+            elided_right = true;
+        }
+    }
+
+    let mut out = Vec::new();
+    if elided_left {
+        out.push(Segment { text: "...".into(), token: Token::Muted });
+    }
+    for (n, &i) in visible.iter().enumerate() {
+        if i == window.start {
+            out.push(Segment {
+                text: g.get(Role::WindowLeft).to_string(),
+                token: Token::Window,
+            });
+        }
+        let (text, _) = glyph_for(&line.entries[i], i < now, g);
+        out.push(Segment { text, token: token_for(line, i, &line.entries[i]) });
+        if i + 1 == window.end {
+            out.push(Segment {
+                text: g.get(Role::WindowRight).to_string(),
+                token: Token::Window,
+            });
+        }
+        if n + 1 < visible.len() {
+            out.push(Segment {
+                text: g.get(Role::Rule).to_string(),
+                token: Token::Muted,
+            });
+        }
+    }
+    if elided_right {
+        out.push(Segment { text: "...".into(), token: Token::Muted });
+    }
+    out.push(Segment { text: g.get(Role::Arrow).to_string(), token: Token::Muted });
+    out
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `cargo test -p tl ribbon` then `cargo insta accept` to record the snapshot, then re-run.
+Expected: PASS, 8 tests.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add tl/src/tui/ tl/src/lib.rs tl/Cargo.toml tl/src/snapshots/
+git commit -m "feat(tui): ribbon built as pure segments with window bracket and elision"
+```
+
+---
+
+### Task 13: Window list, app state, and keymap
+
+**Files:**
+- Create: `tl/src/tui/list.rs`, `tl/src/tui/app.rs`
+- Modify: `tl/src/tui/mod.rs`, `tl/src/cli/mod.rs` (launch TUI when no subcommand)
+- Test: inline `#[cfg(test)]` in `tl/src/tui/app.rs` and `tl/src/tui/list.rs`
+
+**Interfaces:**
+- Consumes: `ribbon::build`/`Segment` from Task 12; `view::window` from Task 6; model ops from Task 2.
+- Produces: `App { pub line: Line, pub cursor: usize, pub cfg: Config, pub dirty: bool }`, `App::new(Line, Config) -> App`, `App::on_key(KeyCode) -> Action`, `Action { None, Quit, Save, AddAfterCursor, Sharpen }`, `list::build(&App, &Glyphs) -> Vec<Vec<Segment>>`, `draw(&mut Frame, &App, &Glyphs, &Theme)`.
+
+The cursor is a view position and is deliberately separate from Now, which is
+data (spec 3.3). Moving the cursor never writes.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `tl/src/tui/app.rs`:
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+    use crate::format::parse;
+    use crate::model::Id;
+    use crossterm::event::KeyCode;
+
+    fn app() -> App {
+        let l = parse(
+            "# T\n\n- [x] a  ^aaa\n\n── NOW ──\n\n- [ ] b  ^bbb\n- [ ] c  ^ccc\n- [ ] d  ^ddd\n",
+        )
+        .unwrap();
+        App::new(l, Config::default())
+    }
+
+    #[test]
+    fn j_and_k_move_the_cursor_without_writing() {
+        let mut a = app();
+        let start = a.cursor;
+        a.on_key(KeyCode::Char('j'));
+        assert_eq!(a.cursor, start + 1);
+        a.on_key(KeyCode::Char('k'));
+        assert_eq!(a.cursor, start);
+        assert!(!a.dirty, "cursor movement must not mark the line dirty");
+    }
+
+    #[test]
+    fn the_cursor_clamps_at_both_ends() {
+        let mut a = app();
+        for _ in 0..50 {
+            a.on_key(KeyCode::Char('j'));
+        }
+        assert_eq!(a.cursor, a.line.entries.len() - 1);
+        for _ in 0..50 {
+            a.on_key(KeyCode::Char('k'));
+        }
+        assert_eq!(a.cursor, 0);
+    }
+
+    #[test]
+    fn shift_j_reorders_the_item_under_the_cursor() {
+        let mut a = app();
+        a.cursor = 2; // ^bbb
+        a.on_key(KeyCode::Char('J'));
+        assert_eq!(a.cursor, 3);
+        let titles: Vec<String> = a.line.items().map(|i| i.title.clone()).collect();
+        assert_eq!(titles, ["a", "c", "b", "d"]);
+        assert!(a.dirty);
+    }
+
+    #[test]
+    fn n_returns_the_cursor_to_now() {
+        let mut a = app();
+        a.cursor = 4;
+        a.on_key(KeyCode::Char('n'));
+        assert_eq!(a.cursor, a.line.now_index());
+    }
+
+    #[test]
+    fn space_advances_now_past_the_cursor() {
+        let mut a = app();
+        a.cursor = 2; // ^bbb
+        a.on_key(KeyCode::Char(' '));
+        assert!(a.line.is_behind_now(&Id::new("bbb")));
+        assert!(a.dirty);
+    }
+
+    #[test]
+    fn brackets_resize_the_window_without_writing() {
+        let mut a = app();
+        let before = a.cfg.window_ahead;
+        a.on_key(KeyCode::Char(']'));
+        assert_eq!(a.cfg.window_ahead, before + 1);
+        a.on_key(KeyCode::Char('['));
+        assert_eq!(a.cfg.window_ahead, before);
+        assert!(!a.dirty);
+    }
+
+    #[test]
+    fn g_and_shift_g_jump_to_the_ends() {
+        let mut a = app();
+        a.on_key(KeyCode::Char('G'));
+        assert_eq!(a.cursor, a.line.entries.len() - 1);
+        a.on_key(KeyCode::Char('g'));
+        assert_eq!(a.cursor, 0);
+    }
+
+    #[test]
+    fn t_toggles_the_theme_variant() {
+        let mut a = app();
+        let before = a.variant;
+        a.on_key(KeyCode::Char('t'));
+        assert_ne!(a.variant, before);
+    }
+
+    #[test]
+    fn q_requests_quit() {
+        let mut a = app();
+        assert_eq!(a.on_key(KeyCode::Char('q')), Action::Quit);
+    }
+
+    #[test]
+    fn d_drops_the_item_under_the_cursor() {
+        let mut a = app();
+        a.cursor = 2;
+        a.on_key(KeyCode::Char('d'));
+        assert!(a.line.is_behind_now(&Id::new("bbb")));
+    }
+}
+```
+
+Create `tl/src/tui/list.rs`:
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+    use crate::format::parse;
+    use crate::glyphs::{Glyphs, Mode};
+    use crate::tui::app::App;
+    use crate::tui::ribbon::plain;
+
+    fn app() -> App {
+        let l = parse(
+            "# T\n\n- [x] a  ^aaa\n\n── NOW ──\n\n- [ ] b  ^bbb\n      why b matters\n- [ ] c  ^ccc\n",
+        )
+        .unwrap();
+        App::new(l, Config::default())
+    }
+
+    #[test]
+    fn each_window_entry_produces_a_row() {
+        let rows = build(&app(), &Glyphs::for_mode(Mode::Ascii));
+        assert_eq!(rows.len(), 4);
+    }
+
+    #[test]
+    fn rows_carry_readable_titles_unlike_the_ribbon() {
+        let rows = build(&app(), &Glyphs::for_mode(Mode::Ascii));
+        let text: String = rows.iter().map(|r| plain(r)).collect();
+        assert!(text.contains("why b matters"));
+        assert!(text.contains('b'));
+    }
+
+    #[test]
+    fn the_cursor_row_is_marked() {
+        let mut a = app();
+        a.cursor = 2;
+        let rows = build(&a, &Glyphs::for_mode(Mode::Ascii));
+        assert!(rows[2].iter().any(|s| s.token == Token::Cursor));
+    }
+
+    #[test]
+    fn snapshot_of_the_window_list() {
+        let rows = build(&app(), &Glyphs::for_mode(Mode::Ascii));
+        let text: String = rows.iter().map(|r| format!("{}\n", plain(r))).collect();
+        insta::assert_snapshot!(text);
+    }
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cargo test -p tl tui`
+Expected: FAIL — `cannot find type App in this scope`.
+
+- [ ] **Step 3: Write minimal implementation**
+
+Update `tl/src/tui/mod.rs`:
+
+```rust
+pub mod app;
+pub mod list;
+pub mod ribbon;
+
+use crate::config::Config;
+use crate::glyphs::{Glyphs, Mode};
+use crate::model::Line;
+use crate::theme::{Depth, Theme};
+use crate::view;
+use anyhow::Result;
+use crossterm::event::{self, Event, KeyEventKind};
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
+use ratatui::prelude::*;
+use ratatui::widgets::Paragraph;
+use std::path::Path;
+
+pub fn launch(line: Line, cfg: Config, path: &Path, mode: Mode, theme_variant: crate::theme::Variant) -> Result<()> {
+    enable_raw_mode()?;
+    let mut out = std::io::stdout();
+    crossterm::execute!(out, EnterAlternateScreen)?;
+    let mut term = Terminal::new(CrosstermBackend::new(out))?;
+
+    let mut app = app::App::new(line, cfg);
+    app.variant = theme_variant;
+    let glyphs = Glyphs::for_mode(mode);
+
+    loop {
+        let theme = Theme::new(app.variant, Depth::True);
+        term.draw(|f| draw(f, &app, &glyphs, &theme))?;
+        if let Event::Key(k) = event::read()? {
+            if k.kind != KeyEventKind::Press {
+                continue;
+            }
+            if app::Action::Quit == app.on_key(k.code) {
+                break;
+            }
+        }
+        if app.dirty {
+            crate::format::io::write_atomic(path, &app.line)?;
+            app.dirty = false;
+        }
+    }
+
+    disable_raw_mode()?;
+    crossterm::execute!(term.backend_mut(), LeaveAlternateScreen)?;
+    Ok(())
+}
+
+fn to_line<'a>(segments: &[ribbon::Segment], theme: &Theme) -> Line<'a> {
+    Line::from(
+        segments
+            .iter()
+            .map(|s| Span::styled(s.text.clone(), theme.style(s.token)))
+            .collect::<Vec<_>>(),
+    )
+}
+
+pub fn draw(f: &mut Frame, app: &app::App, glyphs: &Glyphs, theme: &Theme) {
+    let chunks = Layout::vertical([Constraint::Length(3), Constraint::Min(1)]).split(f.area());
+    let window = view::window(&app.line, &app.cfg);
+    let segs = ribbon::build(&app.line, window, glyphs, chunks[0].width as usize);
+    f.render_widget(Paragraph::new(to_line(&segs, theme)), chunks[0]);
+
+    let rows: Vec<Line> = list::build(app, glyphs)
+        .iter()
+        .map(|r| to_line(r, theme))
+        .collect();
+    f.render_widget(Paragraph::new(rows), chunks[1]);
+}
+```
+
+Prepend to `tl/src/tui/app.rs`:
+
+```rust
+use crate::config::Config;
+use crate::model::{Entry, Id, Line, Position, Ref};
+use crate::theme::Variant;
+use crossterm::event::KeyCode;
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Action {
+    None,
+    Quit,
+}
+
+pub struct App {
+    pub line: Line,
+    /// A VIEW position. Now is data; the cursor is where you are looking.
+    pub cursor: usize,
+    pub cfg: Config,
+    pub dirty: bool,
+    pub variant: Variant,
+}
+
+impl App {
+    pub fn new(line: Line, cfg: Config) -> App {
+        let cursor = line.now_index();
+        App { line, cursor, cfg, dirty: false, variant: Variant::Dark }
+    }
+
+    fn cursor_id(&self) -> Option<Id> {
+        match &self.line.entries[self.cursor] {
+            Entry::Item(i) => Some(i.id.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn on_key(&mut self, key: KeyCode) -> Action {
+        let last = self.line.entries.len().saturating_sub(1);
+        match key {
+            KeyCode::Char('q') => return Action::Quit,
+            KeyCode::Char('j') => self.cursor = (self.cursor + 1).min(last),
+            KeyCode::Char('k') => self.cursor = self.cursor.saturating_sub(1),
+            KeyCode::Char('g') => self.cursor = 0,
+            KeyCode::Char('G') => self.cursor = last,
+            KeyCode::Char('n') => self.cursor = self.line.now_index(),
+            KeyCode::Char(']') => self.cfg.window_ahead += 1,
+            KeyCode::Char('[') => {
+                self.cfg.window_ahead = self.cfg.window_ahead.saturating_sub(1).max(1)
+            }
+            KeyCode::Char('t') => {
+                self.variant = match self.variant {
+                    Variant::Dark => Variant::Light,
+                    Variant::Light => Variant::Dark,
+                }
+            }
+            KeyCode::Char('J') if self.cursor < last => {
+                let here = self.cursor;
+                let what = ref_at(&self.line, here);
+                let below = ref_at(&self.line, here + 1);
+                if let (Some(w), Some(b)) = (what, below) {
+                    if self.line.move_entry(&w, &Position::After(b)).is_ok() {
+                        self.cursor = here + 1;
+                        self.dirty = true;
+                    }
+                }
+            }
+            KeyCode::Char('K') if self.cursor > 0 => {
+                let here = self.cursor;
+                let what = ref_at(&self.line, here);
+                let above = ref_at(&self.line, here - 1);
+                if let (Some(w), Some(a)) = (what, above) {
+                    if self.line.move_entry(&w, &Position::Before(a)).is_ok() {
+                        self.cursor = here - 1;
+                        self.dirty = true;
+                    }
+                }
+            }
+            KeyCode::Char(' ') => {
+                if let Some(id) = self.cursor_id() {
+                    if self.line.advance(Some(&Ref::Id(id))).is_ok() {
+                        self.dirty = true;
+                    }
+                }
+            }
+            KeyCode::Char('d') => {
+                if let Some(id) = self.cursor_id() {
+                    if self.line.drop_item(&id, "dropped in the TUI".into()).is_ok() {
+                        self.dirty = true;
+                    }
+                }
+            }
+            _ => {}
+        }
+        Action::None
+    }
+}
+
+fn ref_at(line: &Line, index: usize) -> Option<Ref> {
+    match line.entries.get(index)? {
+        Entry::Item(i) => Some(Ref::Id(i.id.clone())),
+        Entry::Marker(m) => Some(Ref::Marker(m.label.clone())),
+        Entry::Now => Some(Ref::Now),
+    }
+}
+```
+
+Prepend to `tl/src/tui/list.rs`:
+
+```rust
+use crate::glyphs::{Glyphs, Role};
+use crate::model::{Entry, ItemState};
+use crate::theme::Token;
+use crate::tui::app::App;
+use crate::tui::ribbon::Segment;
+use crate::view;
+
+/// One row per entry in the window, with readable titles and bodies — the
+/// zoom-in half of the two-level view.
+pub fn build(app: &App, g: &Glyphs) -> Vec<Vec<Segment>> {
+    let window = view::window(&app.line, &app.cfg);
+    let now = app.line.now_index();
+    let mut rows = Vec::new();
+
+    for i in window.start..window.end.min(app.line.entries.len()) {
+        let mut row = Vec::new();
+        let is_cursor = i == app.cursor;
+        row.push(Segment {
+            text: if is_cursor { "> ".into() } else { "  ".into() },
+            token: if is_cursor { Token::Cursor } else { Token::Muted },
+        });
+
+        match &app.line.entries[i] {
+            Entry::Now => row.push(Segment {
+                text: format!("{} NOW", g.get(Role::Now)),
+                token: Token::Now,
+            }),
+            Entry::Marker(m) => row.push(Segment {
+                text: format!("{} {}", g.get(Role::Marker), m.label),
+                token: Token::Marker,
+            }),
+            Entry::Item(item) => {
+                let role = match (&item.state, i < now) {
+                    (ItemState::Dropped(_), _) => Role::Dropped,
+                    (ItemState::Blocked(_), _) => Role::Blocked,
+                    (ItemState::Active, _) => Role::Active,
+                    (_, true) => Role::Done,
+                    (_, false) => Role::Open,
+                };
+                let token = if is_cursor {
+                    Token::Cursor
+                } else {
+                    match &item.state {
+                        ItemState::Dropped(_) => Token::Dropped,
+                        ItemState::Blocked(_) => Token::Blocked,
+                        _ => {
+                            let d = view::distance_from_now(&app.line, i);
+                            if d < 0 {
+                                Token::Past
+                            } else if d <= 3 {
+                                Token::Near
+                            } else if d <= 10 {
+                                Token::Mid
+                            } else {
+                                Token::Far
+                            }
+                        }
+                    }
+                };
+                row.push(Segment {
+                    text: format!("{} {}  ^{}", g.get(role), item.title, item.id.0),
+                    token,
+                });
+                for d in &item.description {
+                    rows.push(row.clone());
+                    row = vec![Segment { text: format!("      {d}"), token: Token::Muted }];
+                }
+            }
+        }
+        rows.push(row);
+    }
+    rows
+}
+```
+
+Finally, in `tl/src/cli/mod.rs`, launch the TUI when no subcommand is given.
+Replace the `_ => 0..line.entries.len(),` arm of the `span` match with:
+
+```rust
+        None => {
+            let mode = Mode::resolve(cli.glyphs.as_deref(), &cfg, is_tty);
+            let variant = Variant::resolve(cli.theme.as_deref(), &cfg);
+            crate::tui::launch(line, cfg, &path, mode, variant)?;
+            return Ok(0);
+        }
+        _ => 0..line.entries.len(),
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `cargo test -p tl tui` then `cargo insta accept`, then re-run.
+Expected: PASS, 14 tests.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add tl/
+git commit -m "feat(tui): window list, app state, keymap, and the two-zoom-level screen"
+```
