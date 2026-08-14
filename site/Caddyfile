@@ -1,4 +1,10 @@
 :80 {
+	# One canonical hostname. www still needs to resolve and still needs a
+	# cert (the browser validates TLS before it ever sees this redirect),
+	# but it should never serve the site itself.
+	@www host www.tlflow.cc
+	redir @www https://tlflow.cc{uri} permanent
+
 	root * /srv
 	encode zstd gzip
 	file_server
