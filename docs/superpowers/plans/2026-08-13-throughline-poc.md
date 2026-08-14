@@ -1663,3 +1663,788 @@ Expected: PASS, 9 tests.
 git add tl/src/view/ tl/src/lib.rs
 git commit -m "feat(view): derived window, slice, and distance-from-now"
 ```
+
+---
+
+### Task 7: Glyph sets
+
+**Files:**
+- Create: `tl/src/glyphs/mod.rs`
+- Modify: `tl/src/lib.rs` (add `pub mod glyphs;`)
+- Test: inline `#[cfg(test)]` in `tl/src/glyphs/mod.rs`
+
+**Interfaces:**
+- Consumes: `Config` from Task 5.
+- Produces: `Role` (18 variants), `Mode { NerdFont, Unicode, Ascii }`, `Glyphs`, `Glyphs::for_mode(Mode) -> Glyphs`, `Glyphs::get(Role) -> &'static str`, `Mode::resolve(flag: Option<&str>, cfg: &Config, is_tty: bool) -> Mode`.
+
+Codepoints are from Nerd Fonts `glyphnames.json` v3.5.0 and are listed in spec
+7.1. Do not substitute other glyphs: `pass_filled` and `circle_large` are
+optically the same size, which is why items do not jitter as they cross Now.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `tl/src/glyphs/mod.rs`:
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+
+    const ALL: [Role; 18] = [
+        Role::Done, Role::Open, Role::Active, Role::Dropped, Role::Blocked,
+        Role::Marker, Role::Now, Role::Arrow, Role::Children, Role::Sharpened,
+        Role::Coarse, Role::Cycle, Role::History, Role::ZoomOut, Role::Search,
+        Role::WindowLeft, Role::WindowRight, Role::Rule,
+    ];
+
+    #[test]
+    fn every_role_has_a_glyph_in_every_mode() {
+        for mode in [Mode::NerdFont, Mode::Unicode, Mode::Ascii] {
+            let g = Glyphs::for_mode(mode);
+            for role in ALL {
+                assert!(!g.get(role).is_empty(), "{mode:?} has no glyph for {role:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn ascii_mode_is_pure_seven_bit() {
+        let g = Glyphs::for_mode(Mode::Ascii);
+        for role in ALL {
+            assert!(g.get(role).is_ascii(), "{role:?} is not ascii: {:?}", g.get(role));
+        }
+    }
+
+    #[test]
+    fn nerdfont_codepoints_match_the_spec() {
+        let g = Glyphs::for_mode(Mode::NerdFont);
+        assert_eq!(g.get(Role::Done), "\u{ebb3}");   // cod-pass_filled
+        assert_eq!(g.get(Role::Open), "\u{ebb5}");   // cod-circle_large
+        assert_eq!(g.get(Role::Now), "\u{eb1a}");    // cod-location
+        assert_eq!(g.get(Role::Marker), "\u{eb20}"); // cod-milestone
+        assert_eq!(g.get(Role::WindowLeft), "\u{e0b6}");
+        assert_eq!(g.get(Role::WindowRight), "\u{e0b4}");
+    }
+
+    #[test]
+    fn the_ribbon_rule_stays_unicode_in_nerdfont_mode() {
+        // cod-horizontal_rule does not tile; spec 7.1 pins this deliberately.
+        assert_eq!(Glyphs::for_mode(Mode::NerdFont).get(Role::Rule), "─");
+    }
+
+    #[test]
+    fn a_flag_beats_config() {
+        let mut cfg = Config::default();
+        cfg.glyphs = Some("unicode".into());
+        assert_eq!(Mode::resolve(Some("ascii"), &cfg, true), Mode::Ascii);
+    }
+
+    #[test]
+    fn config_is_used_when_no_flag_is_given() {
+        let mut cfg = Config::default();
+        cfg.glyphs = Some("nerdfont".into());
+        assert_eq!(Mode::resolve(None, &cfg, true), Mode::NerdFont);
+    }
+
+    #[test]
+    fn non_tty_forces_ascii_regardless_of_config() {
+        let mut cfg = Config::default();
+        cfg.glyphs = Some("nerdfont".into());
+        assert_eq!(Mode::resolve(None, &cfg, false), Mode::Ascii);
+    }
+
+    #[test]
+    fn unicode_is_the_fallback_on_a_tty_with_no_preference() {
+        assert_eq!(Mode::resolve(None, &Config::default(), true), Mode::Unicode);
+    }
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cargo test -p tl glyphs`
+Expected: FAIL — `cannot find type Role in this scope`.
+
+- [ ] **Step 3: Write minimal implementation**
+
+Add `pub mod glyphs;` to `tl/src/lib.rs`. Prepend to `tl/src/glyphs/mod.rs`:
+
+```rust
+use crate::config::Config;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Role {
+    Done, Open, Active, Dropped, Blocked,
+    Marker, Now, Arrow, Children, Sharpened,
+    Coarse, Cycle, History, ZoomOut, Search,
+    WindowLeft, WindowRight, Rule,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mode {
+    NerdFont,
+    Unicode,
+    Ascii,
+}
+
+impl Mode {
+    /// flag > env > config > detection. Non-TTY always wins: an agent piping
+    /// output must never receive glyphs it cannot render (spec 7.4).
+    pub fn resolve(flag: Option<&str>, cfg: &Config, is_tty: bool) -> Mode {
+        if !is_tty {
+            return Mode::Ascii;
+        }
+        let named = flag
+            .map(str::to_string)
+            .or_else(|| std::env::var("TL_GLYPHS").ok())
+            .or_else(|| cfg.glyphs.clone());
+        match named.as_deref() {
+            Some("nerdfont") => Mode::NerdFont,
+            Some("ascii") => Mode::Ascii,
+            Some("unicode") => Mode::Unicode,
+            // Nerd Font support is not reliably detectable; `tl doctor` asks
+            // once and writes the answer to config (spec 7.1).
+            _ => Mode::Unicode,
+        }
+    }
+}
+
+pub struct Glyphs {
+    mode: Mode,
+}
+
+impl Glyphs {
+    pub fn for_mode(mode: Mode) -> Glyphs {
+        Glyphs { mode }
+    }
+
+    pub fn get(&self, role: Role) -> &'static str {
+        match self.mode {
+            Mode::NerdFont => nerdfont(role),
+            Mode::Unicode => unicode(role),
+            Mode::Ascii => ascii(role),
+        }
+    }
+}
+
+/// Codicons throughout, for uniform stroke weight (spec 7.1).
+fn nerdfont(role: Role) -> &'static str {
+    match role {
+        Role::Done => "\u{ebb3}",        // cod-pass_filled
+        Role::Open => "\u{ebb5}",        // cod-circle_large
+        Role::Active => "\u{eba6}",      // cod-play_circle
+        Role::Dropped => "\u{eabd}",     // cod-circle_slash
+        Role::Blocked => "\u{ea6c}",     // cod-warning
+        Role::Marker => "\u{eb20}",      // cod-milestone
+        Role::Now => "\u{eb1a}",         // cod-location
+        Role::Arrow => "\u{eb70}",       // cod-triangle_right
+        Role::Children => "\u{eb17}",    // cod-list_unordered
+        Role::Sharpened => "\u{eb26}",   // cod-note
+        Role::Coarse => "\u{ea61}",      // cod-lightbulb
+        Role::Cycle => "\u{ea77}",       // cod-sync
+        Role::History => "\u{ea82}",     // cod-history
+        Role::ZoomOut => "\u{eb82}",     // cod-zoom_out
+        Role::Search => "\u{ea6d}",      // cod-search
+        Role::WindowLeft => "\u{e0b6}",  // ple-left_half_circle_thick
+        Role::WindowRight => "\u{e0b4}", // ple-right_half_circle_thick
+        Role::Rule => "─",               // deliberately not cod-horizontal_rule
+    }
+}
+
+fn unicode(role: Role) -> &'static str {
+    match role {
+        Role::Done => "●",
+        Role::Open => "○",
+        Role::Active => "◉",
+        Role::Dropped => "⊘",
+        Role::Blocked => "⚠",
+        Role::Marker => "◆",
+        Role::Now => "│",
+        Role::Arrow => "▶",
+        Role::Children => "▾",
+        Role::Sharpened => "≡",
+        Role::Coarse => "·",
+        Role::Cycle => "↻",
+        Role::History => "⟲",
+        Role::ZoomOut => "⊟",
+        Role::Search => "⌕",
+        Role::WindowLeft => "┌",
+        Role::WindowRight => "┐",
+        Role::Rule => "─",
+    }
+}
+
+fn ascii(role: Role) -> &'static str {
+    match role {
+        Role::Done => "[x]",
+        Role::Open => "[ ]",
+        Role::Active => "[>]",
+        Role::Dropped => "[-]",
+        Role::Blocked => "!",
+        Role::Marker => "<>",
+        Role::Now => "|",
+        Role::Arrow => ">",
+        Role::Children => "+",
+        Role::Sharpened => "=",
+        Role::Coarse => "~",
+        Role::Cycle => "@",
+        Role::History => "<<",
+        Role::ZoomOut => "-",
+        Role::Search => "/",
+        Role::WindowLeft => "[",
+        Role::WindowRight => "]",
+        Role::Rule => "-",
+    }
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `cargo test -p tl glyphs`
+Expected: PASS, 8 tests.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add tl/src/glyphs/ tl/src/lib.rs
+git commit -m "feat(glyphs): nerdfont, unicode, and ascii sets with mode resolution"
+```
+
+---
+
+### Task 8: Theme tokens and palettes
+
+**Files:**
+- Create: `tl/src/theme/mod.rs`
+- Modify: `tl/Cargo.toml` (add `ratatui`, `terminal-light`), `tl/src/lib.rs`
+- Test: inline `#[cfg(test)]` in `tl/src/theme/mod.rs`
+
+**Interfaces:**
+- Consumes: `Config` from Task 5.
+- Produces: `Token` (13 variants), `Variant { Dark, Light }`, `Depth { True, Ansi256, Ansi16, None }`, `Theme`, `Theme::new(Variant, Depth) -> Theme`, `Theme::style(Token) -> ratatui::style::Style`, `Theme::fade(isize) -> Token`, `Variant::resolve(Option<&str>, &Config) -> Variant`, `Depth::detect(is_tty: bool) -> Depth`.
+
+The light theme is not an inversion: bright cyan on white is unreadable, so it
+takes a deeper accent (spec 7.2). `near`/`mid`/`far` are theme-authored because
+dark fades toward black and light fades toward white (spec 7.3).
+
+- [ ] **Step 1: Write the failing test**
+
+Create `tl/src/theme/mod.rs`:
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+    use ratatui::style::Color;
+
+    const ALL: [Token; 13] = [
+        Token::Past, Token::Now, Token::Near, Token::Mid, Token::Far,
+        Token::Marker, Token::Blocked, Token::Dropped, Token::Cursor,
+        Token::Window, Token::Muted, Token::Bg, Token::Fg,
+    ];
+
+    #[test]
+    fn every_token_resolves_in_both_variants() {
+        for v in [Variant::Dark, Variant::Light] {
+            let t = Theme::new(v, Depth::True);
+            for tok in ALL {
+                assert_ne!(t.style(tok), Default::default(), "{v:?}/{tok:?} unstyled");
+            }
+        }
+    }
+
+    #[test]
+    fn light_is_not_a_mechanical_inversion_of_dark() {
+        // The accent must differ in hue, not merely in lightness.
+        let dark = Theme::new(Variant::Dark, Depth::True).style(Token::Now).fg.unwrap();
+        let light = Theme::new(Variant::Light, Depth::True).style(Token::Now).fg.unwrap();
+        assert_ne!(dark, light);
+    }
+
+    #[test]
+    fn no_colour_depth_yields_unstyled_colours_but_keeps_modifiers() {
+        let t = Theme::new(Variant::Dark, Depth::None);
+        assert_eq!(t.style(Token::Now).fg, None);
+    }
+
+    #[test]
+    fn truecolor_depth_produces_rgb() {
+        let t = Theme::new(Variant::Dark, Depth::True);
+        assert!(matches!(t.style(Token::Now).fg, Some(Color::Rgb(_, _, _))));
+    }
+
+    #[test]
+    fn ansi16_depth_degrades_to_indexed_colours() {
+        let t = Theme::new(Variant::Dark, Depth::Ansi16);
+        assert!(!matches!(t.style(Token::Now).fg, Some(Color::Rgb(_, _, _))));
+    }
+
+    #[test]
+    fn fade_maps_distance_from_now_to_near_mid_far() {
+        let t = Theme::new(Variant::Dark, Depth::True);
+        assert_eq!(t.fade(-2), Token::Past);
+        assert_eq!(t.fade(0), Token::Near);
+        assert_eq!(t.fade(2), Token::Near);
+        assert_eq!(t.fade(5), Token::Mid);
+        assert_eq!(t.fade(30), Token::Far);
+    }
+
+    #[test]
+    fn a_flag_beats_config_for_the_variant() {
+        let mut cfg = Config::default();
+        cfg.theme = Some("dark".into());
+        assert_eq!(Variant::resolve(Some("light"), &cfg), Variant::Light);
+    }
+
+    #[test]
+    fn non_tty_disables_colour_entirely() {
+        assert_eq!(Depth::detect(false), Depth::None);
+    }
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cargo test -p tl theme`
+Expected: FAIL — `cannot find type Token in this scope`.
+
+- [ ] **Step 3: Write minimal implementation**
+
+Add to `tl/Cargo.toml` under `[dependencies]`:
+
+```toml
+ratatui = "0.29"
+crossterm = "0.28"
+terminal-light = "1.4"
+```
+
+Add `pub mod theme;` to `tl/src/lib.rs`. Prepend to `tl/src/theme/mod.rs`:
+
+```rust
+use crate::config::Config;
+use ratatui::style::{Color, Modifier, Style};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Token {
+    Past, Now, Near, Mid, Far,
+    Marker, Blocked, Dropped, Cursor, Window, Muted, Bg, Fg,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Variant {
+    Dark,
+    Light,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Depth {
+    True,
+    Ansi256,
+    Ansi16,
+    None,
+}
+
+impl Variant {
+    pub fn resolve(flag: Option<&str>, cfg: &Config) -> Variant {
+        let named = flag
+            .map(str::to_string)
+            .or_else(|| std::env::var("TL_THEME").ok())
+            .or_else(|| cfg.theme.clone());
+        match named.as_deref() {
+            Some("light") => Variant::Light,
+            Some("dark") => Variant::Dark,
+            _ => match terminal_light::luma() {
+                Ok(l) if l > 0.5 => Variant::Light,
+                _ => Variant::Dark,
+            },
+        }
+    }
+}
+
+impl Depth {
+    pub fn detect(is_tty: bool) -> Depth {
+        if !is_tty || std::env::var_os("NO_COLOR").is_some() {
+            return Depth::None;
+        }
+        match std::env::var("COLORTERM").as_deref() {
+            Ok("truecolor") | Ok("24bit") => Depth::True,
+            _ => match std::env::var("TERM") {
+                Ok(t) if t.contains("256") => Depth::Ansi256,
+                _ => Depth::Ansi16,
+            },
+        }
+    }
+}
+
+pub struct Theme {
+    variant: Variant,
+    depth: Depth,
+}
+
+/// (r, g, b, ansi16 fallback)
+type Swatch = (u8, u8, u8, Color);
+
+impl Theme {
+    pub fn new(variant: Variant, depth: Depth) -> Theme {
+        Theme { variant, depth }
+    }
+
+    pub fn style(&self, token: Token) -> Style {
+        let (r, g, b, fallback) = self.swatch(token);
+        let base = match self.depth {
+            Depth::None => Style::default(),
+            Depth::True => Style::default().fg(Color::Rgb(r, g, b)),
+            Depth::Ansi256 | Depth::Ansi16 => Style::default().fg(fallback),
+        };
+        match token {
+            Token::Now | Token::Cursor => base.add_modifier(Modifier::BOLD),
+            Token::Far | Token::Muted => base.add_modifier(Modifier::DIM),
+            _ => base,
+        }
+    }
+
+    /// Distance from Now to a detail token (spec 7.3). Behind Now is history and
+    /// always reads as `Past`; ahead fades with distance.
+    pub fn fade(&self, distance: isize) -> Token {
+        match distance {
+            d if d < 0 => Token::Past,
+            0..=3 => Token::Near,
+            4..=10 => Token::Mid,
+            _ => Token::Far,
+        }
+    }
+
+    fn swatch(&self, token: Token) -> Swatch {
+        match self.variant {
+            // Dark: navy ground, electric cyan accent; fades toward black.
+            Variant::Dark => match token {
+                Token::Bg => (11, 17, 32, Color::Black),
+                Token::Fg => (222, 232, 245, Color::White),
+                Token::Now => (56, 189, 248, Color::LightCyan),
+                Token::Past => (94, 110, 133, Color::DarkGray),
+                Token::Near => (222, 232, 245, Color::White),
+                Token::Mid => (140, 158, 181, Color::Gray),
+                Token::Far => (82, 96, 117, Color::DarkGray),
+                Token::Marker => (129, 140, 248, Color::LightMagenta),
+                Token::Blocked => (251, 191, 36, Color::Yellow),
+                Token::Dropped => (100, 108, 124, Color::DarkGray),
+                Token::Cursor => (125, 211, 252, Color::LightBlue),
+                Token::Window => (30, 58, 95, Color::Blue),
+                Token::Muted => (94, 110, 133, Color::DarkGray),
+            },
+            // Light: near-white ground, DEEPER blue accent — bright cyan on
+            // white is unreadable (spec 7.2). Fades toward white.
+            Variant::Light => match token {
+                Token::Bg => (250, 251, 253, Color::White),
+                Token::Fg => (17, 26, 42, Color::Black),
+                Token::Now => (3, 87, 156, Color::Blue),
+                Token::Past => (128, 141, 160, Color::Gray),
+                Token::Near => (17, 26, 42, Color::Black),
+                Token::Mid => (94, 108, 128, Color::DarkGray),
+                Token::Far => (163, 176, 193, Color::Gray),
+                Token::Marker => (79, 70, 229, Color::Magenta),
+                Token::Blocked => (180, 83, 9, Color::Yellow),
+                Token::Dropped => (156, 166, 181, Color::Gray),
+                Token::Cursor => (2, 108, 194, Color::LightBlue),
+                Token::Window => (219, 234, 254, Color::LightBlue),
+                Token::Muted => (128, 141, 160, Color::Gray),
+            },
+        }
+    }
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `cargo test -p tl theme`
+Expected: PASS, 8 tests.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add tl/src/theme/ tl/Cargo.toml tl/src/lib.rs
+git commit -m "feat(theme): semantic tokens with dark and light palettes"
+```
+
+---
+
+### Task 9: Method lints (`tl check`)
+
+**Files:**
+- Create: `tl/src/check/mod.rs`
+- Modify: `tl/src/lib.rs` (add `pub mod check;`)
+- Test: inline `#[cfg(test)]` in `tl/src/check/mod.rs`
+
+**Interfaces:**
+- Consumes: `Line`, `Item`, `Entry`, `ItemState` from Tasks 1–2; `Config` from Task 5; `view::window`, `view::distance_from_now` from Task 6.
+- Produces: `Severity { Warning, Error }`, `Finding { pub lint: &'static str, pub severity: Severity, pub subject: String, pub message: String }`, `check(&Line, &Config) -> Vec<Finding>`, `has_errors(&[Finding]) -> bool`.
+
+`duplicate-id` and `no-now` are structurally impossible to reach through
+`parse`, which rejects both. They are implemented here anyway because a `Line`
+can also be built in memory, and because `check` is the documented contract.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `tl/src/check/mod.rs`:
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+    use crate::format::parse;
+
+    fn lints(src: &str) -> Vec<String> {
+        check(&parse(src).unwrap(), &Config::default())
+            .into_iter()
+            .map(|f| f.lint.to_string())
+            .collect()
+    }
+
+    #[test]
+    fn a_bucket_marker_warns() {
+        let out = check(
+            &parse("# T\n\n── NOW ──\n\n◆ backlog ◆\n\n- [ ] a  ^aaa\n      body\n").unwrap(),
+            &Config::default(),
+        );
+        let f = out.iter().find(|f| f.lint == "bucket").expect("no bucket lint");
+        assert_eq!(f.severity, Severity::Warning);
+    }
+
+    #[test]
+    fn the_allowlist_suppresses_the_bucket_lint() {
+        let mut cfg = Config::default();
+        cfg.allow_markers = vec!["v2".into()];
+        let l = parse("# T\n\n── NOW ──\n\n◆ v2 ◆\n\n- [ ] a  ^aaa\n      body\n").unwrap();
+        assert!(!check(&l, &cfg).iter().any(|f| f.lint == "bucket"));
+    }
+
+    #[test]
+    fn a_bare_item_inside_the_window_is_unsharpened() {
+        assert!(lints("# T\n\n── NOW ──\n\n- [ ] a  ^aaa\n").contains(&"unsharpened".into()));
+    }
+
+    #[test]
+    fn a_sharpened_item_inside_the_window_is_clean() {
+        let out = lints("# T\n\n── NOW ──\n\n- [ ] a  ^aaa\n      why this matters\n");
+        assert!(!out.contains(&"unsharpened".into()));
+    }
+
+    #[test]
+    fn a_long_body_far_from_now_is_false_certainty() {
+        let mut src = String::from("# T\n\n── NOW ──\n\n");
+        for n in 0..9 {
+            src.push_str(&format!("- [ ] near{n}  ^n{n}\n      body\n"));
+        }
+        src.push_str("- [ ] distant  ^ddd\n      one\n      two\n      three\n      four\n");
+        assert!(lints(&src).contains(&"false-certainty".into()));
+    }
+
+    #[test]
+    fn results_do_not_count_toward_false_certainty() {
+        // A long RESULT far behind Now is history and always allowed.
+        let src = "# T\n\n- [x] a  ^aaa\n      → one\n        two\n        three\n        four\n\n── NOW ──\n\n- [ ] b  ^bbb\n      body\n";
+        assert!(!lints(src).contains(&"false-certainty".into()));
+    }
+
+    #[test]
+    fn a_result_ahead_of_now_is_an_error() {
+        let src = "# T\n\n── NOW ──\n\n- [ ] a  ^aaa\n      body\n      → done already\n";
+        let out = check(&parse(src).unwrap(), &Config::default());
+        let f = out.iter().find(|f| f.lint == "result-ahead").expect("no lint");
+        assert_eq!(f.severity, Severity::Error);
+    }
+
+    #[test]
+    fn a_parent_behind_now_with_open_children_is_an_orphan_parent() {
+        let src = "# T\n\n- [x] a  ^aaa\n      - [ ] unfinished\n\n── NOW ──\n\n- [ ] b  ^bbb\n      body\n";
+        assert!(lints(src).contains(&"orphan-parent".into()));
+    }
+
+    #[test]
+    fn children_carrying_status_suggest_they_belong_on_the_line() {
+        let src = "# T\n\n── NOW ──\n\n- [ ] a  ^aaa\n      body\n      - [ ] one @blocked(keys)\n";
+        assert!(lints(src).contains(&"independent-children".into()));
+    }
+
+    #[test]
+    fn a_clean_line_produces_no_findings() {
+        let src = "# T\n\n- [x] a  ^aaa\n      → shipped\n\n── NOW ──\n\n- [ ] b  ^bbb\n      why this matters\n";
+        assert!(check(&parse(src).unwrap(), &Config::default()).is_empty());
+    }
+
+    #[test]
+    fn warnings_alone_do_not_count_as_errors() {
+        let findings = check(
+            &parse("# T\n\n── NOW ──\n\n- [ ] a  ^aaa\n").unwrap(),
+            &Config::default(),
+        );
+        assert!(!findings.is_empty());
+        assert!(!has_errors(&findings));
+    }
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cargo test -p tl check`
+Expected: FAIL — `cannot find function check in this scope`.
+
+- [ ] **Step 3: Write minimal implementation**
+
+Add `pub mod check;` to `tl/src/lib.rs`. Prepend to `tl/src/check/mod.rs`:
+
+```rust
+use crate::config::Config;
+use crate::model::{Entry, ItemState, Line};
+use crate::view;
+
+const BUCKET_WORDS: [&str; 7] = [
+    "backlog", "someday", "later", "v2", "post-launch", "icebox", "blocked",
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Severity {
+    Warning,
+    Error,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Finding {
+    pub lint: &'static str,
+    pub severity: Severity,
+    pub subject: String,
+    pub message: String,
+}
+
+pub fn has_errors(findings: &[Finding]) -> bool {
+    findings.iter().any(|f| f.severity == Severity::Error)
+}
+
+pub fn check(line: &Line, cfg: &Config) -> Vec<Finding> {
+    let mut out = Vec::new();
+    let win = view::window(line, cfg);
+    let now = line.now_index();
+
+    for (i, entry) in line.entries.iter().enumerate() {
+        match entry {
+            Entry::Marker(m) => {
+                let label = m.label.to_lowercase();
+                let is_bucket = BUCKET_WORDS.iter().any(|w| label.contains(w));
+                let allowed = cfg
+                    .allow_markers
+                    .iter()
+                    .any(|a| a.eq_ignore_ascii_case(&m.label));
+                if is_bucket && !allowed {
+                    out.push(Finding {
+                        lint: "bucket",
+                        severity: Severity::Warning,
+                        subject: m.label.clone(),
+                        message: "reads as a bucket; if it should happen later, put it later"
+                            .into(),
+                    });
+                }
+            }
+            Entry::Item(item) => {
+                let behind = i < now;
+                let in_window = i >= win.start && i < win.end;
+
+                if !behind && !item.result.is_empty() {
+                    out.push(Finding {
+                        lint: "result-ahead",
+                        severity: Severity::Error,
+                        subject: item.id.0.clone(),
+                        message: "outcomes belong to history; move it behind Now first".into(),
+                    });
+                }
+
+                if !behind && in_window && !item.is_sharpened() {
+                    out.push(Finding {
+                        lint: "unsharpened",
+                        severity: Severity::Warning,
+                        subject: item.id.0.clone(),
+                        message: "inside the window but still bare; sharpen before starting"
+                            .into(),
+                    });
+                }
+
+                if !behind && !in_window && item.description.len() > cfg.far_body_lines {
+                    out.push(Finding {
+                        lint: "false-certainty",
+                        severity: Severity::Warning,
+                        subject: item.id.0.clone(),
+                        message: "detailed but far from Now; distance should mean less detail"
+                            .into(),
+                    });
+                }
+
+                if behind
+                    && !matches!(item.state, ItemState::Dropped(_))
+                    && item.children.iter().any(|c| !c.done)
+                {
+                    out.push(Finding {
+                        lint: "orphan-parent",
+                        severity: Severity::Error,
+                        subject: item.id.0.clone(),
+                        message: "behind Now with unfinished children".into(),
+                    });
+                }
+
+                if item
+                    .children
+                    .iter()
+                    .any(|c| c.title.contains("@blocked(") || c.title.contains("@active"))
+                {
+                    out.push(Finding {
+                        lint: "independent-children",
+                        severity: Severity::Warning,
+                        subject: item.id.0.clone(),
+                        message: "children carrying status can be tracked separately; \
+                                  they belong on the line"
+                            .into(),
+                    });
+                }
+            }
+            Entry::Now => {}
+        }
+    }
+
+    let now_count = line.entries.iter().filter(|e| matches!(e, Entry::Now)).count();
+    if now_count != 1 {
+        out.push(Finding {
+            lint: "no-now",
+            severity: Severity::Error,
+            subject: "NOW".into(),
+            message: format!("expected exactly one NOW marker, found {now_count}"),
+        });
+    }
+
+    let mut seen = std::collections::HashSet::new();
+    for item in line.items() {
+        if !seen.insert(item.id.0.clone()) {
+            out.push(Finding {
+                lint: "duplicate-id",
+                severity: Severity::Error,
+                subject: item.id.0.clone(),
+                message: "two items share this id".into(),
+            });
+        }
+    }
+
+    out
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `cargo test -p tl check`
+Expected: PASS, 11 tests.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add tl/src/check/ tl/src/lib.rs
+git commit -m "feat(check): method lints with warning and error severities"
+```
