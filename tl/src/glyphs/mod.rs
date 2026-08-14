@@ -30,15 +30,24 @@ pub enum Mode {
 }
 
 impl Mode {
-    /// flag > env > config > detection. Non-TTY always wins: an agent piping
-    /// output must never receive glyphs it cannot render (spec 7.4).
+    /// flag > env > config > detection. With no flag, non-TTY forces ascii so
+    /// an agent piping output never receives glyphs it cannot render (7.4).
     pub fn resolve(flag: Option<&str>, cfg: &Config, is_tty: bool) -> Mode {
+        // An explicit --glyphs is an instruction, not a preference, so it wins
+        // even when piped. Non-TTY overrides only env, config, and detection —
+        // mirroring how --color=always beats the same check.
+        if let Some(explicit) = flag {
+            return match explicit {
+                "nerdfont" => Mode::NerdFont,
+                "ascii" => Mode::Ascii,
+                _ => Mode::Unicode,
+            };
+        }
         if !is_tty {
             return Mode::Ascii;
         }
-        let named = flag
-            .map(str::to_string)
-            .or_else(|| std::env::var("TL_GLYPHS").ok())
+        let named = std::env::var("TL_GLYPHS")
+            .ok()
             .or_else(|| cfg.glyphs.clone());
         match named.as_deref() {
             Some("nerdfont") => Mode::NerdFont,
@@ -222,6 +231,15 @@ mod tests {
         let mut cfg = Config::default();
         cfg.glyphs = Some("nerdfont".into());
         assert_eq!(Mode::resolve(None, &cfg, false), Mode::Ascii);
+    }
+
+    #[test]
+    fn an_explicit_flag_wins_even_when_piped() {
+        // Otherwise `tl line --glyphs unicode > out.txt` silently ignores the
+        // flag, which is the one case where you would bother passing it.
+        let cfg = Config::default();
+        assert_eq!(Mode::resolve(Some("unicode"), &cfg, false), Mode::Unicode);
+        assert_eq!(Mode::resolve(Some("nerdfont"), &cfg, false), Mode::NerdFont);
     }
 
     #[test]
