@@ -1,10 +1,10 @@
 pub mod init;
 pub mod render;
 
+use crate::check::{self, Severity};
 use crate::config::Config;
 use crate::format::io;
 use crate::glyphs::{Glyphs, Mode};
-use crate::check::{self, Severity};
 use crate::model::{Child, Entry, Id, Item, ItemState, Line, Marker, Position, Ref};
 use crate::theme::{Depth, Theme, Variant};
 use crate::view;
@@ -261,11 +261,18 @@ fn resolve_commit(spec: &str, root: &Path) -> Option<String> {
             return None;
         }
         let s = String::from_utf8(out.stdout).ok()?.trim().to_string();
-        if s.is_empty() { None } else { Some(s) }
+        if s.is_empty() {
+            None
+        } else {
+            Some(s)
+        }
     };
     if root.join(".jj").is_dir() {
         // Change IDs survive rewriting; commit IDs do not.
-        if let Some(id) = run("jj", &["log", "-r", "@", "--no-graph", "-T", "change_id.short()"]) {
+        if let Some(id) = run(
+            "jj",
+            &["log", "-r", "@", "--no-graph", "-T", "change_id.short()"],
+        ) {
             return Some(id);
         }
         // A .jj directory with no usable jj binary records nothing rather than
@@ -297,12 +304,7 @@ fn inquiry_prompt(quiet: bool) {
 
 /// A named theme may be built in or a user file. Anything explicitly asked for
 /// must exist — silently falling back to dark would hide a typo.
-fn resolve_theme(
-    flag: Option<&str>,
-    cfg: &Config,
-    depth: Depth,
-    root: &Path,
-) -> Result<Theme> {
+fn resolve_theme(flag: Option<&str>, cfg: &Config, depth: Depth, root: &Path) -> Result<Theme> {
     let named = flag
         .map(str::to_string)
         .or_else(|| std::env::var("TL_THEME").ok())
@@ -394,9 +396,18 @@ pub fn run(cli: Cli) -> Result<i32> {
     // pollutes stdout — and an agent shelling out is precisely who should be
     // asked what the result changes.
     let quiet = cli.json;
-    let root = path.parent().and_then(|p| p.parent()).unwrap_or(Path::new(".")).to_path_buf();
+    let root = path
+        .parent()
+        .and_then(|p| p.parent())
+        .unwrap_or(Path::new("."))
+        .to_path_buf();
     match &cli.command {
-        Some(Command::Add { title, after, before, end }) => {
+        Some(Command::Add {
+            title,
+            after,
+            before,
+            end,
+        }) => {
             let id = fresh_id(&line, title);
             line.insert(
                 Entry::Item(Item::new(id, title.clone())),
@@ -442,9 +453,15 @@ pub fn run(cli: Cli) -> Result<i32> {
             inquiry_prompt(quiet);
             return Ok(0);
         }
-        Some(Command::Mark { label, after, before }) => {
+        Some(Command::Mark {
+            label,
+            after,
+            before,
+        }) => {
             line.insert(
-                Entry::Marker(Marker { label: label.clone() }),
+                Entry::Marker(Marker {
+                    label: label.clone(),
+                }),
                 &placement(after, before, false)?,
             )?;
             io::write_atomic(&path, &line)?;
@@ -463,7 +480,9 @@ pub fn run(cli: Cli) -> Result<i32> {
             return Ok(0);
         }
         Some(Command::Sharpen { id, body }) => {
-            let idx = line.index_of(&parse_ref(id)).ok_or_else(|| anyhow!("no item {id}"))?;
+            let idx = line
+                .index_of(&parse_ref(id))
+                .ok_or_else(|| anyhow!("no item {id}"))?;
             if let Entry::Item(item) = &mut line.entries[idx] {
                 item.description = body.lines().map(str::to_string).collect();
             }
@@ -471,7 +490,9 @@ pub fn run(cli: Cli) -> Result<i32> {
             return Ok(0);
         }
         Some(Command::Split { id }) => {
-            let idx = line.index_of(&parse_ref(id)).ok_or_else(|| anyhow!("no item {id}"))?;
+            let idx = line
+                .index_of(&parse_ref(id))
+                .ok_or_else(|| anyhow!("no item {id}"))?;
             let children: Vec<Child> = match &mut line.entries[idx] {
                 Entry::Item(item) => std::mem::take(&mut item.children),
                 _ => return Err(anyhow!("{id} is not an item")),

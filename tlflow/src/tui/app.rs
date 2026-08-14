@@ -96,7 +96,11 @@ impl App {
             }
             KeyCode::Char('d') => {
                 if let Some(id) = self.cursor_id() {
-                    if self.line.drop_item(&id, "dropped in the TUI".into()).is_ok() {
+                    if self
+                        .line
+                        .drop_item(&id, "dropped in the TUI".into())
+                        .is_ok()
+                    {
                         self.dirty = true;
                     }
                 }

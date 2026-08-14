@@ -39,8 +39,8 @@ fn every_generated_diagram_appears_verbatim_in_the_method_document() {
 /// The document must not quietly revert to the old framing.
 #[test]
 fn the_method_document_uses_the_current_vocabulary() {
-    let doc = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../docs/method.md"))
-        .unwrap();
+    let doc =
+        std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../docs/method.md")).unwrap();
     for needle in [
         "Learn in cycles. Move in a line.",
         "Inquiry",

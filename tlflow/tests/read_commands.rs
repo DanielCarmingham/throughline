@@ -49,7 +49,9 @@ fn line_prints_every_entry_in_order() {
     ];
     let mut last = 0;
     for needle in order {
-        let at = text.find(needle).unwrap_or_else(|| panic!("missing {needle}"));
+        let at = text
+            .find(needle)
+            .unwrap_or_else(|| panic!("missing {needle}"));
         assert!(at >= last, "{needle} out of order");
         last = at;
     }
@@ -92,7 +94,10 @@ fn window_is_narrower_than_the_whole_line() {
 #[test]
 fn slice_returns_only_the_requested_span() {
     let d = fixture();
-    let out = tl(d.path()).args(["slice", "^q1d..^r7e"]).assert().success();
+    let out = tl(d.path())
+        .args(["slice", "^q1d..^r7e"])
+        .assert()
+        .success();
     let text = String::from_utf8(out.get_output().stdout.clone()).unwrap();
     assert!(text.contains("write the docs"));
     assert!(text.contains("parse line.md"));

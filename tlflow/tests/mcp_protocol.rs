@@ -135,7 +135,15 @@ fn tools_are_advertised() {
     names.sort();
     assert_eq!(
         names,
-        ["add", "advance", "check", "line", "move_item", "now", "window"]
+        [
+            "add",
+            "advance",
+            "check",
+            "line",
+            "move_item",
+            "now",
+            "window"
+        ]
     );
 }
 

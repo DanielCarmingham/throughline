@@ -208,7 +208,11 @@ fn commit_auto_never_records_the_literal_word() {
 fn check_exits_zero_when_only_warnings_fire() {
     let d = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(d.path().join(".throughline")).unwrap();
-    std::fs::write(line_path(d.path()), "# T\n\n── NOW ──\n\n- [ ] bare  ^aaa\n").unwrap();
+    std::fs::write(
+        line_path(d.path()),
+        "# T\n\n── NOW ──\n\n- [ ] bare  ^aaa\n",
+    )
+    .unwrap();
     tl(d.path())
         .arg("check")
         .assert()
@@ -236,7 +240,11 @@ fn check_exits_non_zero_on_an_error_lint() {
 fn check_json_lists_findings_with_severities() {
     let d = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(d.path().join(".throughline")).unwrap();
-    std::fs::write(line_path(d.path()), "# T\n\n── NOW ──\n\n- [ ] bare  ^aaa\n").unwrap();
+    std::fs::write(
+        line_path(d.path()),
+        "# T\n\n── NOW ──\n\n- [ ] bare  ^aaa\n",
+    )
+    .unwrap();
     let out = tl(d.path()).args(["check", "--json"]).assert().success();
     let v: serde_json::Value = serde_json::from_slice(&out.get_output().stdout).unwrap();
     assert_eq!(v["findings"][0]["lint"], "unsharpened");

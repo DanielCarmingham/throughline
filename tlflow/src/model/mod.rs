@@ -142,7 +142,9 @@ mod tests {
             entries: vec![
                 Entry::Item(Item::new(Id::new("aaa"), "past work")),
                 Entry::Now,
-                Entry::Marker(Marker { label: "v0.1".into() }),
+                Entry::Marker(Marker {
+                    label: "v0.1".into(),
+                }),
                 Entry::Item(Item::new(Id::new("bbb"), "future work")),
             ],
         }

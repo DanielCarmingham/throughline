@@ -66,10 +66,7 @@ pub fn scaffold(root: &Path) -> Result<()> {
         };
         io::write_atomic(&line_path, &line)?;
     }
-    for (name, body) in [
-        ("THROUGHLINE.md", THROUGHLINE_MD),
-        ("AGENTS.md", AGENTS_MD),
-    ] {
+    for (name, body) in [("THROUGHLINE.md", THROUGHLINE_MD), ("AGENTS.md", AGENTS_MD)] {
         let p = root.join(name);
         if !p.exists() {
             std::fs::write(p, body)?;

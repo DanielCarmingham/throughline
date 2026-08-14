@@ -64,7 +64,12 @@ and it passes `tlflow check`.
 The practice is written up in [docs/method.md](docs/method.md).
 
 ```
-cargo install --path tlflow    # puts `tlflow` on your PATH
+curl -fsSL https://raw.githubusercontent.com/DanielCarmingham/throughline/main/install.sh | sh
+```
+
+Or `cargo install --path tlflow` from a clone. Then:
+
+```
 tlflow init                    # start a line in any repo
 tlflow                         # open the terminal UI
 tlflow --help                  # refs, examples, every flag

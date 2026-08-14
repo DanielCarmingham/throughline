@@ -165,7 +165,10 @@ mod tests {
             &parse("# T\n\n── NOW ──\n\n◆ backlog ◆\n\n- [ ] a  ^aaa\n      body\n").unwrap(),
             &Config::default(),
         );
-        let f = out.iter().find(|f| f.lint == "bucket").expect("no bucket lint");
+        let f = out
+            .iter()
+            .find(|f| f.lint == "bucket")
+            .expect("no bucket lint");
         assert_eq!(f.severity, Severity::Warning);
     }
 
@@ -209,7 +212,10 @@ mod tests {
     fn a_result_ahead_of_now_is_an_error() {
         let src = "# T\n\n── NOW ──\n\n- [ ] a  ^aaa\n      body\n      → done already\n";
         let out = check(&parse(src).unwrap(), &Config::default());
-        let f = out.iter().find(|f| f.lint == "result-ahead").expect("no lint");
+        let f = out
+            .iter()
+            .find(|f| f.lint == "result-ahead")
+            .expect("no lint");
         assert_eq!(f.severity, Severity::Error);
     }
 

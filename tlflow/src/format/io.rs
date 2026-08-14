@@ -52,7 +52,11 @@ mod tests {
     fn finds_the_line_file_by_walking_up() {
         let root = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(root.path().join(".throughline")).unwrap();
-        std::fs::write(root.path().join(".throughline/line.md"), "# T\n\n── NOW ──\n").unwrap();
+        std::fs::write(
+            root.path().join(".throughline/line.md"),
+            "# T\n\n── NOW ──\n",
+        )
+        .unwrap();
         let deep = root.path().join("a/b/c");
         std::fs::create_dir_all(&deep).unwrap();
 

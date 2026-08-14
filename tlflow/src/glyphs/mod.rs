@@ -180,7 +180,10 @@ mod tests {
         for mode in [Mode::NerdFont, Mode::Unicode, Mode::Ascii] {
             let g = Glyphs::for_mode(mode);
             for role in ALL {
-                assert!(!g.get(role).is_empty(), "{mode:?} has no glyph for {role:?}");
+                assert!(
+                    !g.get(role).is_empty(),
+                    "{mode:?} has no glyph for {role:?}"
+                );
             }
         }
     }
@@ -216,19 +219,28 @@ mod tests {
 
     #[test]
     fn a_flag_beats_config() {
-        let cfg = Config { glyphs: Some("unicode".into()), ..Default::default() };
+        let cfg = Config {
+            glyphs: Some("unicode".into()),
+            ..Default::default()
+        };
         assert_eq!(Mode::resolve(Some("ascii"), &cfg, true), Mode::Ascii);
     }
 
     #[test]
     fn config_is_used_when_no_flag_is_given() {
-        let cfg = Config { glyphs: Some("nerdfont".into()), ..Default::default() };
+        let cfg = Config {
+            glyphs: Some("nerdfont".into()),
+            ..Default::default()
+        };
         assert_eq!(Mode::resolve(None, &cfg, true), Mode::NerdFont);
     }
 
     #[test]
     fn non_tty_forces_ascii_regardless_of_config() {
-        let cfg = Config { glyphs: Some("nerdfont".into()), ..Default::default() };
+        let cfg = Config {
+            glyphs: Some("nerdfont".into()),
+            ..Default::default()
+        };
         assert_eq!(Mode::resolve(None, &cfg, false), Mode::Ascii);
     }
 

@@ -17,7 +17,11 @@ pub fn build(app: &App, g: &Glyphs) -> Vec<Vec<Segment>> {
         let is_cursor = i == app.cursor;
         row.push(Segment {
             text: if is_cursor { "> ".into() } else { "  ".into() },
-            token: if is_cursor { Token::Cursor } else { Token::Muted },
+            token: if is_cursor {
+                Token::Cursor
+            } else {
+                Token::Muted
+            },
         });
 
         match &app.line.entries[i] {
@@ -113,7 +117,9 @@ mod tests {
         let mut a = app();
         a.cursor = 2;
         let rows = build(&a, &Glyphs::for_mode(Mode::Ascii));
-        assert!(rows.iter().any(|r| r.iter().any(|s| s.token == Token::Cursor)));
+        assert!(rows
+            .iter()
+            .any(|r| r.iter().any(|s| s.token == Token::Cursor)));
     }
 
     #[test]

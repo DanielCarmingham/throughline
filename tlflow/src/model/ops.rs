@@ -25,11 +25,13 @@ impl Line {
         Ok(match p {
             Position::End => self.entries.len(),
             Position::After(r) => {
-                self.index_of(r).ok_or_else(|| OpError::UnknownRef(describe(r)))? + 1
+                self.index_of(r)
+                    .ok_or_else(|| OpError::UnknownRef(describe(r)))?
+                    + 1
             }
-            Position::Before(r) => {
-                self.index_of(r).ok_or_else(|| OpError::UnknownRef(describe(r)))?
-            }
+            Position::Before(r) => self
+                .index_of(r)
+                .ok_or_else(|| OpError::UnknownRef(describe(r)))?,
         })
     }
 
@@ -107,7 +109,9 @@ mod tests {
                 Entry::Item(Item::new(Id::new("aaa"), "a")),
                 Entry::Now,
                 Entry::Item(Item::new(Id::new("bbb"), "b")),
-                Entry::Marker(Marker { label: "v0.1".into() }),
+                Entry::Marker(Marker {
+                    label: "v0.1".into(),
+                }),
                 Entry::Item(Item::new(Id::new("ccc"), "c")),
             ],
         }
@@ -204,7 +208,10 @@ mod tests {
             title: "T".into(),
             entries: vec![Entry::Item(Item::new(Id::new("aaa"), "a")), Entry::Now],
         };
-        assert!(matches!(l.advance(None).unwrap_err(), OpError::NothingAhead));
+        assert!(matches!(
+            l.advance(None).unwrap_err(),
+            OpError::NothingAhead
+        ));
     }
 
     #[test]

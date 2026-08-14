@@ -51,10 +51,12 @@ fn ribbon(line: &Line, cfg: &Config) -> String {
 fn no_window(line: &Line) -> String {
     // A span outside the line draws no bracket, for diagrams about the line
     // itself rather than about attention.
-    let span = view::Span { start: usize::MAX, end: usize::MAX };
+    let span = view::Span {
+        start: usize::MAX,
+        end: usize::MAX,
+    };
     plain(&build(line, span, &Glyphs::for_mode(Mode::Unicode), 400))
 }
-
 
 /// Widen the rule between entries so labels have room to sit beneath them.
 /// The ribbon is dense by design — two columns per item — which is right on a

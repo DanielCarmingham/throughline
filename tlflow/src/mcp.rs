@@ -140,8 +140,7 @@ fn parse_ref(s: &str) -> Ref {
     }
 }
 
-const INQUIRY: &str =
-    "what does that change? act on it with move, add or drop — a result that \
+const INQUIRY: &str = "what does that change? act on it with move, add or drop — a result that \
      changes nothing was not worth recording";
 
 #[tool_router]
@@ -171,14 +170,20 @@ impl Throughline {
                 entries: (0..l.entries.len()).map(|i| to_entry(&l, i)).collect(),
                 now_index: l.now_index(),
             }),
-            Err(_) => Json(LineOut { entries: vec![], now_index: 0 }),
+            Err(_) => Json(LineOut {
+                entries: vec![],
+                now_index: 0,
+            }),
         }
     }
 
     #[tool(description = "The current attention window — what is in focus around Now.")]
     fn window(&self, Parameters(a): Parameters<WindowArgs>) -> Json<LineOut> {
         let Ok((l, mut cfg)) = self.load() else {
-            return Json(LineOut { entries: vec![], now_index: 0 });
+            return Json(LineOut {
+                entries: vec![],
+                now_index: 0,
+            });
         };
         if let Some(b) = a.back {
             cfg.window_back = b;
@@ -211,20 +216,29 @@ impl Throughline {
     )]
     fn add(&self, Parameters(a): Parameters<AddArgs>) -> Json<Wrote> {
         let Ok((mut l, _)) = self.load() else {
-            return Json(Wrote { ok: false, what_does_that_change: None });
+            return Json(Wrote {
+                ok: false,
+                what_does_that_change: None,
+            });
         };
         let pos = match (&a.after, &a.before, a.end.unwrap_or(false)) {
             (Some(r), _, _) => Position::After(parse_ref(r)),
             (_, Some(r), _) => Position::Before(parse_ref(r)),
             (_, _, true) => Position::End,
-            _ => return Json(Wrote { ok: false, what_does_that_change: None }),
+            _ => {
+                return Json(Wrote {
+                    ok: false,
+                    what_does_that_change: None,
+                })
+            }
         };
         let id = crate::cli::fresh_id(&l, &a.title);
-        let ok = l
-            .insert(Entry::Item(Item::new(id, a.title)), &pos)
-            .is_ok()
-            && self.save(&l).is_ok();
-        Json(Wrote { ok, what_does_that_change: None })
+        let ok =
+            l.insert(Entry::Item(Item::new(id, a.title)), &pos).is_ok() && self.save(&l).is_ok();
+        Json(Wrote {
+            ok,
+            what_does_that_change: None,
+        })
     }
 
     #[tool(
@@ -234,11 +248,17 @@ impl Throughline {
     )]
     fn advance(&self, Parameters(a): Parameters<AdvanceArgs>) -> Json<Wrote> {
         let Ok((mut l, _)) = self.load() else {
-            return Json(Wrote { ok: false, what_does_that_change: None });
+            return Json(Wrote {
+                ok: false,
+                what_does_that_change: None,
+            });
         };
         let target = a.to.as_deref().map(parse_ref);
         let Ok(passed) = l.advance(target.as_ref()) else {
-            return Json(Wrote { ok: false, what_does_that_change: None });
+            return Json(Wrote {
+                ok: false,
+                what_does_that_change: None,
+            });
         };
         if let (Some(last), Some(text)) = (passed.last(), a.result.as_ref()) {
             if let Some(i) = l.index_of(&Ref::Id(last.clone())) {
@@ -254,19 +274,32 @@ impl Throughline {
         })
     }
 
-    #[tool(description = "Reorder an item. Changing the order is not a failure of \
-                          planning — it is planning.")]
+    #[tool(
+        description = "Reorder an item. Changing the order is not a failure of \
+                          planning — it is planning."
+    )]
     fn move_item(&self, Parameters(a): Parameters<MoveArgs>) -> Json<Wrote> {
         let Ok((mut l, _)) = self.load() else {
-            return Json(Wrote { ok: false, what_does_that_change: None });
+            return Json(Wrote {
+                ok: false,
+                what_does_that_change: None,
+            });
         };
         let pos = match (&a.after, &a.before) {
             (Some(r), _) => Position::After(parse_ref(r)),
             (_, Some(r)) => Position::Before(parse_ref(r)),
-            _ => return Json(Wrote { ok: false, what_does_that_change: None }),
+            _ => {
+                return Json(Wrote {
+                    ok: false,
+                    what_does_that_change: None,
+                })
+            }
         };
         let ok = l.move_entry(&parse_ref(&a.id), &pos).is_ok() && self.save(&l).is_ok();
-        Json(Wrote { ok, what_does_that_change: None })
+        Json(Wrote {
+            ok,
+            what_does_that_change: None,
+        })
     }
 
     #[tool(
@@ -276,7 +309,10 @@ impl Throughline {
     )]
     fn check(&self, Parameters(_): Parameters<Empty>) -> Json<CheckOut> {
         let Ok((l, cfg)) = self.load() else {
-            return Json(CheckOut { findings: vec![], clean: false });
+            return Json(CheckOut {
+                findings: vec![],
+                clean: false,
+            });
         };
         let findings = check::check(&l, &cfg);
         Json(CheckOut {
@@ -320,7 +356,9 @@ answer with `move` or `add`. Placement is always required; there is no backlog."
 impl ServerHandler for Throughline {
     fn get_info(&self) -> rmcp::model::ServerInfo {
         rmcp::model::ServerInfo::new(
-            rmcp::model::ServerCapabilities::builder().enable_tools().build(),
+            rmcp::model::ServerCapabilities::builder()
+                .enable_tools()
+                .build(),
         )
         .with_server_info(rmcp::model::Implementation::new(
             "throughline",
@@ -410,10 +448,17 @@ mod tests {
             result: Some("it worked".into()),
         }));
         assert!(w.ok);
-        assert!(w.what_does_that_change.unwrap().contains("what does that change"));
+        assert!(w
+            .what_does_that_change
+            .unwrap()
+            .contains("what does that change"));
 
         let Json(out) = t.line();
-        let b = out.entries.iter().find(|e| e.id.as_deref() == Some("bbb")).unwrap();
+        let b = out
+            .entries
+            .iter()
+            .find(|e| e.id.as_deref() == Some("bbb"))
+            .unwrap();
         assert!(b.behind_now, "advance must move it behind Now");
         assert_eq!(b.result, vec!["it worked"]);
     }
@@ -421,7 +466,10 @@ mod tests {
     #[test]
     fn advance_without_a_result_does_not_ask() {
         let (_d, t) = fixture();
-        let Json(w) = t.advance(Parameters(AdvanceArgs { to: None, result: None }));
+        let Json(w) = t.advance(Parameters(AdvanceArgs {
+            to: None,
+            result: None,
+        }));
         assert!(w.ok);
         assert!(w.what_does_that_change.is_none());
     }

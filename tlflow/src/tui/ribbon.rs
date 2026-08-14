@@ -65,7 +65,10 @@ pub fn build(line: &Line, window: Span, g: &Glyphs, width: usize) -> Vec<Segment
     let assemble = |visible: &[usize], left: bool, right: bool| -> Vec<Segment> {
         let mut out = Vec::new();
         if left {
-            out.push(Segment { text: "...".into(), token: Token::Muted });
+            out.push(Segment {
+                text: "...".into(),
+                token: Token::Muted,
+            });
         }
         for (n, &i) in visible.iter().enumerate() {
             if i == window.start {
@@ -92,7 +95,10 @@ pub fn build(line: &Line, window: Span, g: &Glyphs, width: usize) -> Vec<Segment
             }
         }
         if right {
-            out.push(Segment { text: "...".into(), token: Token::Muted });
+            out.push(Segment {
+                text: "...".into(),
+                token: Token::Muted,
+            });
         }
         out.push(Segment {
             text: g.get(Role::Arrow).to_string(),

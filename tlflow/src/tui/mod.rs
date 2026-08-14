@@ -6,9 +6,9 @@ use crate::config::Config;
 use crate::glyphs::{Glyphs, Mode};
 // `ratatui::prelude::*` also exports `Line`, so alias ours to keep them apart.
 use crate::model::Line as ProjectLine;
-use crate::theme::{Theme, Token};
 #[cfg(test)]
 use crate::theme::{Depth, Variant};
+use crate::theme::{Theme, Token};
 use crate::view;
 use anyhow::{Context, Result};
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
@@ -38,13 +38,7 @@ fn install_panic_hook() {
     }));
 }
 
-pub fn launch(
-    line: ProjectLine,
-    cfg: Config,
-    path: &Path,
-    mode: Mode,
-    theme: Theme,
-) -> Result<()> {
+pub fn launch(line: ProjectLine, cfg: Config, path: &Path, mode: Mode, theme: Theme) -> Result<()> {
     install_panic_hook();
     enable_raw_mode()?;
     let mut out = std::io::stdout();
@@ -196,7 +190,13 @@ mod tests {
         let glyphs = Glyphs::for_mode(Mode::Ascii);
         term.draw(|f| draw(f, &app, &glyphs, &theme)).unwrap();
 
-        let text: String = term.backend().buffer().content().iter().map(|c| c.symbol()).collect();
+        let text: String = term
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|c| c.symbol())
+            .collect();
         assert!(text.contains("[x]"), "ribbon missing from: {text}");
         assert!(text.contains("^bbb"), "window list missing titles");
         assert!(text.contains("q quit"), "status bar missing");
@@ -218,7 +218,15 @@ mod real_line_tests {
             eprintln!("no project line to test against; skipping");
             return;
         };
-        for (w, h) in [(80, 24), (120, 40), (60, 20), (40, 12), (30, 8), (20, 6), (12, 4)] {
+        for (w, h) in [
+            (80, 24),
+            (120, 40),
+            (60, 20),
+            (40, 12),
+            (30, 8),
+            (20, 6),
+            (12, 4),
+        ] {
             let mut term = Terminal::new(TestBackend::new(w, h)).unwrap();
             let app = app::App::new(line.clone(), Config::default());
             let theme = Theme::new(crate::theme::Variant::Dark, crate::theme::Depth::True);

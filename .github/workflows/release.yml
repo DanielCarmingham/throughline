@@ -1,0 +1,124 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build, e.g. v0.1.0'
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Native runners for every target, so nothing is cross-compiled.
+          # Cross-compilation is where release pipelines usually rot, and the
+          # arm64 Linux runner is free for public repositories.
+          - os: macos-14
+            target: aarch64-apple-darwin
+          - os: macos-13
+            target: x86_64-apple-darwin
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --locked --target ${{ matrix.target }} -p throughline
+
+      - name: Smoke test the binary
+        run: |
+          BIN=target/${{ matrix.target }}/release/tlflow
+          "$BIN" --version
+          "$BIN" doctor > /dev/null
+          # It must run somewhere with no line, and say so usefully.
+          # Capture rather than pipe: tlflow correctly exits non-zero here, and
+          # under `set -o pipefail` that would fail the check even when the
+          # message is right.
+          tmp=$(mktemp -d)
+          abs=$(cd "$(dirname "$BIN")" && pwd)/$(basename "$BIN")
+          out=$(cd "$tmp" && "$abs" line 2>&1 || true)
+          case "$out" in
+            *"tlflow init"*) echo "missing-line message OK" ;;
+            *) echo "expected guidance about tlflow init, got: $out"; exit 1 ;;
+          esac
+
+      - name: Package
+        run: |
+          NAME=tlflow-${{ matrix.target }}
+          mkdir -p "dist/$NAME"
+          cp target/${{ matrix.target }}/release/tlflow "dist/$NAME/"
+          cp README.md LICENSE docs/manual.md docs/method.md "dist/$NAME/"
+          tar -C dist -czf "dist/$NAME.tar.gz" "$NAME"
+          # Checksums are per-artifact so they can be verified without
+          # downloading everything.
+          (cd dist && shasum -a 256 "$NAME.tar.gz" > "$NAME.tar.gz.sha256")
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: |
+            dist/*.tar.gz
+            dist/*.sha256
+
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Collect checksums
+        run: |
+          cd artifacts
+          cat *.sha256 > SHA256SUMS
+          rm -f *.sha256
+          ls -la
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          files: artifacts/*
+          generate_release_notes: true
+          body: |
+            ## Install
+
+            ```
+            curl -fsSL https://raw.githubusercontent.com/DanielCarmingham/throughline/main/install.sh | sh
+            ```
+
+            Or download the archive for your platform below, verify it against
+            `SHA256SUMS`, and put `tlflow` on your PATH.
+
+            ```
+            tlflow init      # start a line in any repository
+            tlflow           # open the terminal UI
+            tlflow --help    # refs, examples, every flag
+            ```
+
+            The practice: <https://tlflow.cc> · The manual: `docs/manual.md`

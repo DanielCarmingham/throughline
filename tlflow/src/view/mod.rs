@@ -55,7 +55,10 @@ pub fn slice(line: &Line, from: &Ref, to: &Ref) -> Option<Span> {
     let a = line.index_of(from)?;
     let b = line.index_of(to)?;
     let (lo, hi) = if a <= b { (a, b) } else { (b, a) };
-    Some(Span { start: lo, end: hi + 1 })
+    Some(Span {
+        start: lo,
+        end: hi + 1,
+    })
 }
 
 /// The next item ahead of Now — where work is happening.

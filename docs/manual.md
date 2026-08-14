@@ -18,7 +18,23 @@ The practice itself is described in [method.md](method.md). This is the tool.
 ## Install
 
 ```
-cargo install --path tlflow      # from a clone
+curl -fsSL https://raw.githubusercontent.com/DanielCarmingham/throughline/main/install.sh | sh
+```
+
+The script detects your platform, verifies the archive against the published
+checksum, and installs to `~/.local/bin`. `TLFLOW_BIN_DIR` and `TLFLOW_VERSION`
+override where and which.
+
+Piping a script into a shell means running code you have not read, so it is
+kept short and readable — download it first if you would rather. Or take the
+archive for your platform straight from
+[Releases](https://github.com/DanielCarmingham/throughline/releases), check it
+against `SHA256SUMS`, and put `tlflow` on your PATH yourself.
+
+From a clone:
+
+```
+cargo install --path tlflow
 tlflow --version
 ```
 

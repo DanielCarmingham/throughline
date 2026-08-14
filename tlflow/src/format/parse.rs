@@ -8,7 +8,10 @@ pub struct ParseError {
 }
 
 fn err(line: usize, message: impl Into<String>) -> ParseError {
-    ParseError { line, message: message.into() }
+    ParseError {
+        line,
+        message: message.into(),
+    }
 }
 
 /// `── NOW ──` (canonical) or `-- NOW --` (accepted).
@@ -55,7 +58,10 @@ fn split_meta(text: &str) -> (String, Option<Id>, Option<String>, ItemState) {
     for tok in bare.split_whitespace() {
         if let Some(rest) = tok.strip_prefix('^') {
             id = Some(Id::new(rest));
-        } else if let Some(rest) = tok.strip_prefix("@commit(").and_then(|s| s.strip_suffix(')')) {
+        } else if let Some(rest) = tok
+            .strip_prefix("@commit(")
+            .and_then(|s| s.strip_suffix(')'))
+        {
             commit = Some(rest.to_string());
         } else if tok == "@active" {
             state = ItemState::Active;
@@ -246,7 +252,10 @@ mod tests {
     fn descriptions_are_separate_from_results() {
         let l = parse(SAMPLE).unwrap();
         let item = l.item(&Id::new("q1d")).unwrap();
-        assert_eq!(item.description, vec!["The full practice: line, Now, window."]);
+        assert_eq!(
+            item.description,
+            vec!["The full practice: line, Now, window."]
+        );
         assert!(item.result.is_empty());
     }
 
