@@ -4,3 +4,4 @@ pub mod config;
 pub mod view;
 pub mod glyphs;
 pub mod theme;
+pub mod check;
