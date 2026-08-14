@@ -13,6 +13,3 @@ services:
     x-ports:
       - tlflow.cc:80/https
       - www.tlflow.cc:80/https
-      # Interim hostname on the existing wildcard, so the site is reachable
-      # while the tlflow.cc zone activates. Safe to drop afterwards.
-      - tlflow.digilope.com:80/https
