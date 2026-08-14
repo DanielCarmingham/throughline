@@ -360,6 +360,7 @@ Verbs are the practice's vocabulary. Every read command accepts `--json`.
 | `tlflow drop <id> --why "<reason>" [--result "…"]` | the other outcome |
 | `tlflow mark "<label>" --after <ref>` | place a landmark |
 | `tlflow split <id>` | promote children onto the line |
+| `tlflow retitle <id> "<title>"` | change an item's title, or a marker's label |
 | `tlflow sharpen <id>` | add or edit an item's body |
 | `tlflow check` | lint the line against the practice |
 | `tlflow fmt` | normalize derived content |

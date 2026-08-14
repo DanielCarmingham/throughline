@@ -87,7 +87,7 @@ person may have edited it between calls.
 
 | path | what |
 |---|---|
-| `tl/` | the Rust binary |
+| `tlflow/` | the Rust binary |
 | `site/` | tlflow.cc — Astro, deployed via uncloud |
 | `docs/` | design spec and implementation plan |
 | `brand/` | logo artwork and the tracer that generates every derived asset |

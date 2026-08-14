@@ -94,6 +94,12 @@ pub enum Command {
         #[arg(long, group = "place")]
         before: Option<String>,
     },
+    /// Change an item's title. The line is hand-editable, but a verb keeps
+    /// scripts and agents from having to rewrite Markdown.
+    Retitle {
+        id: String,
+        title: String,
+    },
     /// Add or replace an item's body
     Sharpen {
         id: String,
@@ -338,6 +344,18 @@ pub fn run(cli: Cli) -> Result<i32> {
                 Entry::Marker(Marker { label: label.clone() }),
                 &placement(after, before, false)?,
             )?;
+            io::write_atomic(&path, &line)?;
+            return Ok(0);
+        }
+        Some(Command::Retitle { id, title }) => {
+            let idx = line
+                .index_of(&parse_ref(id))
+                .ok_or_else(|| anyhow!("no item {id}"))?;
+            match &mut line.entries[idx] {
+                Entry::Item(item) => item.title = title.clone(),
+                Entry::Marker(m) => m.label = title.clone(),
+                Entry::Now => return Err(anyhow!("NOW has no title")),
+            }
             io::write_atomic(&path, &line)?;
             return Ok(0);
         }

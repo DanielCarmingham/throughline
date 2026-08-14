@@ -242,3 +242,35 @@ fn check_json_lists_findings_with_severities() {
     assert_eq!(v["findings"][0]["lint"], "unsharpened");
     assert_eq!(v["findings"][0]["severity"], "warning");
 }
+
+#[test]
+fn retitle_changes_an_item_title_and_keeps_its_id_and_body() {
+    let d = fixture();
+    tl(d.path())
+        .args(["retitle", "^t9a", "build the TUI"])
+        .assert()
+        .success();
+    let text = read(d.path());
+    assert!(text.contains("- [ ] build the TUI  ^t9a"));
+    assert!(text.contains("      ribbon"), "body must survive a retitle");
+    assert!(!text.contains("- [ ] tui  ^t9a"));
+}
+
+#[test]
+fn retitle_also_relabels_a_marker() {
+    let d = fixture();
+    tl(d.path())
+        .args(["retitle", "v0.1", "v0.1 — first release"])
+        .assert()
+        .success();
+    assert!(read(d.path()).contains("◆ v0.1 — first release ◆"));
+}
+
+#[test]
+fn retitling_an_unknown_ref_fails() {
+    let d = fixture();
+    tl(d.path())
+        .args(["retitle", "^zzz", "nope"])
+        .assert()
+        .failure();
+}

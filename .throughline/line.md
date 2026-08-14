@@ -40,13 +40,17 @@
       Seed the line from the plan, record every result, and verify tl check passes on its own line.
       → Seeded 17 items from the plan, recorded every result, and the line passes its own lints. The three unsharpened warnings were correct: with 4 items ahead and a window of 7, a short line has no far future.
 
+◆ v0.1 — tlflow manages its own line ◆
+
+- [x] MCP server over stdio  ^5pw  @commit(olormkwqzmoq)
+      Typed tools for agents instead of parsing CLI output. Keep model/ and view/ free of I/O so this stays a thin addition.
+      → Seven MCP tools over stdio, verified against real JSON-RPC. Two defects the unit tests could not see: the server introduced itself as rmcp (from_build_env expands CARGO_CRATE_NAME inside the SDK), and instructions came through empty because the const was never wired up. Async runtime costs 4.8MB release.
+- [x] rename the binary to tlflow  ^paa  @commit(olormkwqzmoq)
+      → tl was shadowed by oh-my-zsh's tmux plugin (alias tl='tmux list-sessions') and the crate name is taken on crates.io by a package with 4M downloads, so it was never publishable. Package is now throughline, binary tlflow. Results recorded before this point still say tl — that is what the tool was called at the time, and history is not rewritten to match the present.
+
 ── NOW ──
 
-◆ v0.1 — tl manages its own line ◆
-
-- [ ] MCP server over stdio  ^5pw
-      Typed tools for agents instead of parsing CLI output. Keep model/ and view/ free of I/O so this stays a thin addition.
 - [ ] user-authored themes  ^a67
       The token layer already makes this a drop-in; needs a theme file format and a loader.
-- [ ] publish tl as a released binary  ^hky
+- [ ] publish tlflow as a released binary  ^hky
       Cross-compiled binaries per platform, plus an install path that is not cargo build.
