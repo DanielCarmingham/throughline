@@ -13,3 +13,7 @@ site/node_modules/
 
 # macOS
 .DS_Store
+
+# rust
+/target
+tl/target
