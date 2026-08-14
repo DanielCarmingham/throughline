@@ -112,6 +112,12 @@ pub enum Command {
     Doctor,
     /// Seed a line from a plan document
     Plan { file: std::path::PathBuf },
+    /// Print a generated method-document diagram
+    Diagram {
+        name: Option<String>,
+        #[arg(long)]
+        all: bool,
+    },
 }
 
 pub fn parse_ref(s: &str) -> Ref {
@@ -233,6 +239,19 @@ pub fn run(cli: Cli) -> Result<i32> {
     }
     if let Some(Command::Doctor) = cli.command {
         print!("{}", init::sample_rows());
+        return Ok(0);
+    }
+    if let Some(Command::Diagram { name, all }) = &cli.command {
+        if *all {
+            print!("{}", crate::diagrams::render_all());
+        } else if let Some(n) = name {
+            match crate::diagrams::render(n) {
+                Some(d) => print!("{d}"),
+                None => return Err(anyhow!("no diagram named {n}")),
+            }
+        } else {
+            println!("{}", crate::diagrams::NAMES.join("\n"));
+        }
         return Ok(0);
     }
 
