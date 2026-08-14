@@ -2,7 +2,7 @@ use assert_cmd::Command;
 use std::path::Path;
 
 fn tl(dir: &Path) -> Command {
-    let mut c = Command::cargo_bin("tl").unwrap();
+    let mut c = Command::cargo_bin("tlflow").unwrap();
     c.current_dir(dir);
     c
 }
@@ -41,10 +41,10 @@ fn the_agent_stanza_names_the_commands_and_the_discipline() {
     tl(d.path()).arg("init").assert().success();
     let text = std::fs::read_to_string(d.path().join("AGENTS.md")).unwrap();
     for needle in [
-        "tl window",
-        "tl add",
-        "tl advance",
-        "tl check",
+        "tlflow window",
+        "tlflow add",
+        "tlflow advance",
+        "tlflow check",
         "behind Now",
         "what does that change",
     ] {

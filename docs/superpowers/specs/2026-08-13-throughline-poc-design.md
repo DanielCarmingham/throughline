@@ -18,12 +18,12 @@ product work has no clean beginning and end either, so the practice does not
 pretend to manage a thing that terminates.
 
 This document specifies a proof of concept: a written description of the
-practice, and `tl`, a combined CLI and TUI tool that manages a line.
+practice, and `tlflow`, a combined CLI and TUI tool that manages a line.
 
 The POC has three deliverables:
 
 1. `docs/method.md` — the practice, described thoroughly.
-2. `tl` — a single Rust binary providing both a CLI and a TUI.
+2. `tlflow` — a single Rust binary providing both a CLI and a TUI.
 3. `.throughline/line.md` — the line for building Throughline itself, so the
    tool manages its own construction from the first commit.
 
@@ -135,15 +135,15 @@ expresses it:
 |---|---|
 | what should we try next | position on the Line — the item ahead of Now |
 | what happened | the item's `result` (5.3) |
-| what does that change | `tl move`, `tl add`, `tl drop` — the Line ahead is edited |
+| what does that change | `tlflow move`, `tlflow add`, `tlflow drop` — the Line ahead is edited |
 
 The fifth question is the one that moves things, and its answer is *a changed
 Line*, not a stored sentence. A `changed:` field would record an intention the
 ordering already states, and the two would drift — the same failure `status is
 position` (3.1) exists to prevent.
 
-What the tool owes Inquiry is a **prompt, not a field**: after `tl advance` or
-`tl done` records a result, it prints "What does that change?" with the three
+What the tool owes Inquiry is a **prompt, not a field**: after `tlflow advance` or
+`tlflow done` records a result, it prints "What does that change?" with the three
 verbs that answer it. That keeps the loop visible at the moment it applies
 without inventing state.
 
@@ -151,10 +151,10 @@ without inventing state.
 
 ### 4.1 Approach: file-first, tool-as-lens
 
-`.throughline/line.md` is the source of truth. It is hand-editable, and `tl`
+`.throughline/line.md` is the source of truth. It is hand-editable, and `tlflow`
 reads, normalizes, renders, and mutates it.
 
-The rejected alternative is tool-first, where `tl` owns all writes and the file
+The rejected alternative is tool-first, where `tlflow` owns all writes and the file
 is an export. That buys write safety but costs the property that makes this
 useful to coding agents: an agent can read one file and hold the entire project
 — plan, queue, and history — in a single read. This is not merely convenient; it
@@ -163,9 +163,9 @@ made literal.
 
 Consequences of file-first:
 
-- `tl` must tolerate hand-edited files, including malformed ones, and report
+- `tlflow` must tolerate hand-edited files, including malformed ones, and report
   parse problems with line numbers rather than failing opaquely.
-- `tl fmt` normalizes derived content (checkboxes) so hand-edits converge.
+- `tlflow fmt` normalizes derived content (checkboxes) so hand-edits converge.
 - Writes are atomic: write to a temporary file in the same directory, then
   rename.
 
@@ -225,7 +225,7 @@ A git SHA is not a stable identifier. The moment a linked commit is rebased,
 amended, or squashed, an item behind Now points at nothing — and a practice that
 claims history is first-class cannot have its history links rot. A jj **change
 ID** is a property of the change rather than of a particular commit object, and
-survives rewriting. Therefore: when `.jj` is present, `tl` records change IDs;
+survives rewriting. Therefore: when `.jj` is present, `tlflow` records change IDs;
 otherwise it falls back to git SHAs and accepts that they are best-effort.
 
 **Prior art to match rather than reinvent:**
@@ -233,12 +233,12 @@ otherwise it falls back to git SHAs and accepts that they are best-effort.
 | jj | Throughline |
 |---|---|
 | `@`, the working-copy commit — "you are here" | Now |
-| `jj rebase -A/--insert-after`, `-B/--insert-before` | `tl move --after` / `--before` |
-| revsets `a..b` | `tl slice <ref>..<ref>` |
+| `jj rebase -A/--insert-after`, `-B/--insert-before` | `tlflow move --after` / `--before` |
+| revsets `a..b` | `tlflow slice <ref>..<ref>` |
 | change IDs stable across rewrite | `^k3f` ids stable across reordering |
 | `jj op log` — every state change, recoverable | git/jj history of `line.md` |
 
-Where jj has already settled a naming or semantic question, `tl` should adopt
+Where jj has already settled a naming or semantic question, `tlflow` should adopt
 its answer. `--after`/`--before` and `a..b` were arrived at independently in
 section 6; matching jj's exact semantics costs nothing and buys familiarity for
 anyone who uses both.
@@ -286,18 +286,18 @@ re-proposed mid-build.
 - **Ids** are Obsidian-style block references (`^k3f`): a caret followed by 3–8
   lowercase alphanumerics, appended to the title line. Ids are stable across
   reordering and are how the CLI and agents refer to items.
-- **Now** is the line `── NOW ──`. Exactly one must exist; `tl fmt` inserts one
+- **Now** is the line `── NOW ──`. Exactly one must exist; `tlflow fmt` inserts one
   at the top if missing.
 - **Markers** are `◆ label ◆`.
 - **The file syntax is fixed and independent of the viewer's glyph mode.** The
   canonical written form is always the unicode form above. The ascii forms
   `-- NOW --` and `<> label <>` are *accepted on read*, for hand-editing in
-  constrained environments, but `tl fmt` always writes the canonical form.
+  constrained environments, but `tlflow fmt` always writes the canonical form.
   Rendering glyph mode must never influence the file, or the same line would
   churn between machines with different terminal capabilities.
 - **Checkboxes are derived.** Items above Now serialize as `[x]`, below as
   `[ ]`. Dropped items serialize as `[-]`. A human who moves a line above Now
-  has completed it; `tl fmt` corrects the checkbox.
+  has completed it; `tlflow fmt` corrects the checkbox.
 - **Bodies** are indented continuation lines beneath the title. Presence of a
   body is what "sharpened" means — see 5.3.
 - **Children** are indented checkbox lines beneath a parent. Children have no
@@ -324,10 +324,10 @@ sketch says "the loop is how we learn" needs somewhere to put what was learned.
 
 Rules:
 
-- Only items behind Now may carry a result; `tl check` lints otherwise.
+- Only items behind Now may carry a result; `tlflow check` lints otherwise.
 - A dropped item may carry both `@dropped(reason)` and a result.
-- Results are written by `tl advance --result`, `tl done --result`, and
-  `tl drop --result`, or by hand.
+- Results are written by `tlflow advance --result`, `tlflow done --result`, and
+  `tlflow drop --result`, or by hand.
 - The `false-certainty` lint counts description lines only. Results are history,
   and history is allowed to be as detailed as it likes.
 
@@ -337,7 +337,7 @@ Detail level is derived: a bare title is coarse, a title with a body is
 sharpened. Far-future items are naturally bare because nobody has written a body
 for them yet.
 
-`tl check` uses this: it warns when an item inside the Window is still bare
+`tlflow check` uses this: it warns when an item inside the Window is still bare
 (needs sharpening before work starts) and when an item far from Now has grown a
 large body (false certainty about distant work). No `resolution:` field is
 introduced.
@@ -348,27 +348,27 @@ Verbs are the practice's vocabulary. Every read command accepts `--json`.
 
 | command | purpose |
 |---|---|
-| `tl` | launch the TUI |
-| `tl line` | the whole line (zoom out) |
-| `tl now` | what sits at Now |
-| `tl window [--back N] [--ahead N]` | the current attention window |
-| `tl slice <ref>..<ref>` | any span; back, forward, or around Now |
-| `tl add "<title>" --after <ref>` | add an item; placement is required |
-| `tl move <id> --after <ref>` | reorder — this is replanning |
-| `tl advance [<id>] [--result "…"] [--commit <rev>]` | move Now forward past the next item, or past everything up to and including `<id>` |
-| `tl done <id> [--result "…"] [--commit <rev>]` | complete an item out of order: move it to immediately behind Now |
-| `tl drop <id> --why "<reason>" [--result "…"]` | the other outcome |
-| `tl mark "<label>" --after <ref>` | place a landmark |
-| `tl split <id>` | promote children onto the line |
-| `tl sharpen <id>` | add or edit an item's body |
-| `tl check` | lint the line against the practice |
-| `tl fmt` | normalize derived content |
-| `tl plan <file>` | seed a line from a plan document |
-| `tl init` | create `.throughline/`, method summary, agent stanza |
-| `tl doctor` | re-run glyph and theme capability detection |
+| `tlflow` | launch the TUI |
+| `tlflow line` | the whole line (zoom out) |
+| `tlflow now` | what sits at Now |
+| `tlflow window [--back N] [--ahead N]` | the current attention window |
+| `tlflow slice <ref>..<ref>` | any span; back, forward, or around Now |
+| `tlflow add "<title>" --after <ref>` | add an item; placement is required |
+| `tlflow move <id> --after <ref>` | reorder — this is replanning |
+| `tlflow advance [<id>] [--result "…"] [--commit <rev>]` | move Now forward past the next item, or past everything up to and including `<id>` |
+| `tlflow done <id> [--result "…"] [--commit <rev>]` | complete an item out of order: move it to immediately behind Now |
+| `tlflow drop <id> --why "<reason>" [--result "…"]` | the other outcome |
+| `tlflow mark "<label>" --after <ref>` | place a landmark |
+| `tlflow split <id>` | promote children onto the line |
+| `tlflow sharpen <id>` | add or edit an item's body |
+| `tlflow check` | lint the line against the practice |
+| `tlflow fmt` | normalize derived content |
+| `tlflow plan <file>` | seed a line from a plan document |
+| `tlflow init` | create `.throughline/`, method summary, agent stanza |
+| `tlflow doctor` | re-run glyph and theme capability detection |
 
 `--after` and `--before` accept an id (`^k3f`), a marker label, or `now`.
-`tl add` has no default placement: choosing where work goes is the thinking the
+`tlflow add` has no default placement: choosing where work goes is the thinking the
 method asks for, and a default would reintroduce a bucket.
 
 `advance` and `done` are both moves, not flags — consistent with 3.1. `advance`
@@ -377,12 +377,12 @@ because there isn't one. `advance` records an outcome for each item it passes,
 defaulting to done.
 
 After recording a result, both print the Inquiry prompt (3.4): "What does that
-change?" followed by `tl move`, `tl add`, `tl drop`. Suppressed by `--json` and
+change?" followed by `tlflow move`, `tlflow add`, `tlflow drop`. Suppressed by `--json` and
 whenever stdout is not a TTY, so it never pollutes machine-readable output.
 
-### 6.1 `tl check` lints
+### 6.1 `tlflow check` lints
 
-`tl check` is what makes the practice enforceable rather than aspirational, and is
+`tlflow check` is what makes the practice enforceable rather than aspirational, and is
 the primary agent-facing feature. It exits non-zero when any lint fires.
 
 | lint | condition |
@@ -398,7 +398,7 @@ the primary agent-facing feature. It exits non-zero when any lint fires.
 | `result-ahead` | an item ahead of Now carrying a result — outcomes belong to history |
 
 **Severity.** `bucket`, `unsharpened`, and `false-certainty` are *warnings*: they
-concern vocabulary and judgement, and `tl check` still exits 0. Everything else
+concern vocabulary and judgement, and `tlflow check` still exits 0. Everything else
 is an *error* and exits non-zero. A tool that refuses to let you name a marker
 "v2" is being righteous rather than useful; `check.allow_markers` suppresses the
 `bucket` lint for specific labels.
@@ -410,14 +410,14 @@ defaults to 3. All three are configurable in `.throughline/config.toml`.
 
 ### 6.2 Agent integration
 
-`tl init` writes:
+`tlflow init` writes:
 
 - `THROUGHLINE.md` — a short summary of the practice and the vocabulary.
 - An `AGENTS.md` stanza describing the commands and the discipline, so coding
   agents adopt the vocabulary without being instructed each session.
 
 When stdout is not a TTY, output automatically degrades to ascii glyphs with
-colour disabled, so an agent piping `tl window` receives clean text with no
+colour disabled, so an agent piping `tlflow window` receives clean text with no
 escape codes.
 
 ## 7. Presentation layer
@@ -473,9 +473,9 @@ Design constraints on the glyph set:
 - **The ribbon rule stays Unicode `─` in all modes.** `cod-horizontal_rule`
   U+EB07 is a short centred dash that does not tile seamlessly.
 
-Nerd Font support is not reliably detectable. On first TUI launch, `tl` renders
+Nerd Font support is not reliably detectable. On first TUI launch, `tlflow` renders
 the same sample row in all three modes and the user selects one with a keypress;
-the choice is written to config and not asked again. `tl doctor` re-runs it.
+the choice is written to config and not asked again. `tlflow doctor` re-runs it.
 
 ### 7.2 Themes
 
@@ -583,7 +583,7 @@ Added by this design (sections 3.1–3.4):
 ### 9.3 Diagrams and the renderer share one vocabulary
 
 Every line-shaped diagram in the document uses the unicode glyph set from 7.1 —
-`●`, `○`, `◆`, `│`, `▶` — so that a reader who runs `tl line` sees the same
+`●`, `○`, `◆`, `│`, `▶` — so that a reader who runs `tlflow line` sees the same
 shapes the document taught them. The document and the tool are one visual
 language, not two.
 
@@ -593,7 +593,7 @@ makes the practice legible. The ascii set exists for degraded terminals and pipe
 output, not for prose.
 
 Diagrams 1, 4, 5, 8, 9, 13, and 14 are *line-shaped*: they depict real line
-states and are therefore **generated from fixture lines by `tl` itself**, using
+states and are therefore **generated from fixture lines by `tlflow` itself**, using
 the golden-snapshot machinery already required by section 10. The document
 cannot drift from the tool's actual output, because the output is the document.
 
@@ -607,7 +607,7 @@ Test-driven throughout.
 
 | layer | approach |
 |---|---|
-| `format` | round-trip property tests (parse → serialize → parse is stable); golden-file tests for `tl fmt` normalization; malformed-input tests asserting errors carry line numbers |
+| `format` | round-trip property tests (parse → serialize → parse is stable); golden-file tests for `tlflow fmt` normalization; malformed-input tests asserting errors carry line numbers |
 | `model` | unit tests on ordering, `advance`, `move`, `drop`, id stability |
 | `view` | unit tests on window and slice derivation, including boundaries |
 | `check` | one test per lint, positive and negative |
@@ -620,8 +620,8 @@ Test-driven throughout.
 **In scope for the POC:**
 
 - `docs/method.md`, written thoroughly, carrying all sixteen diagrams in section
-  9.2 — the seven line-shaped ones generated from fixtures by `tl`.
-- `tl` with the command surface in section 6, the presentation layer in section
+  9.2 — the seven line-shaped ones generated from fixtures by `tlflow`.
+- `tlflow` with the command surface in section 6, the presentation layer in section
   7, and the TUI in section 8.
 - `.throughline/line.md` holding the plan for building Throughline itself.
 

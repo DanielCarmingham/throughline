@@ -2,7 +2,7 @@ use assert_cmd::Command;
 
 #[test]
 fn the_cli_can_print_a_diagram_by_name() {
-    Command::cargo_bin("tl")
+    Command::cargo_bin("tlflow")
         .unwrap()
         .args(["diagram", "the-line"])
         .assert()
@@ -11,7 +11,7 @@ fn the_cli_can_print_a_diagram_by_name() {
 
 #[test]
 fn an_unknown_diagram_name_fails() {
-    Command::cargo_bin("tl")
+    Command::cargo_bin("tlflow")
         .unwrap()
         .args(["diagram", "nope"])
         .assert()
@@ -19,18 +19,18 @@ fn an_unknown_diagram_name_fails() {
 }
 
 /// Spec 9.3: the document cannot drift from the tool's real output, because the
-/// output IS the document. If this fails, run `tl diagram --all` and paste.
+/// output IS the document. If this fails, run `tlflow diagram --all` and paste.
 #[test]
 fn every_generated_diagram_appears_verbatim_in_the_method_document() {
     let doc = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../docs/method.md"))
         .expect("docs/method.md must exist");
 
-    for name in tl::diagrams::NAMES {
-        let rendered = tl::diagrams::render(name).unwrap();
+    for name in throughline::diagrams::NAMES {
+        let rendered = throughline::diagrams::render(name).unwrap();
         assert!(
             doc.contains(rendered.trim_end()),
-            "docs/method.md has drifted from `tl diagram {name}`.\n\
-             Regenerate with: tl diagram --all\n\n\
+            "docs/method.md has drifted from `tlflow diagram {name}`.\n\
+             Regenerate with: tlflow diagram --all\n\n\
              expected to find:\n{rendered}"
         );
     }

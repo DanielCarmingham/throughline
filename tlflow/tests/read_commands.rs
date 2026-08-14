@@ -30,7 +30,7 @@ fn fixture() -> tempfile::TempDir {
 }
 
 fn tl(dir: &Path) -> Command {
-    let mut c = Command::cargo_bin("tl").unwrap();
+    let mut c = Command::cargo_bin("tlflow").unwrap();
     c.current_dir(dir);
     c
 }
@@ -128,7 +128,7 @@ fn a_missing_line_file_fails_with_a_useful_message() {
         .arg("line")
         .assert()
         .failure()
-        .stderr(predicates::str::contains("tl init"));
+        .stderr(predicates::str::contains("tlflow init"));
 }
 
 #[test]
@@ -156,5 +156,5 @@ fn launching_the_tui_without_a_terminal_says_what_to_do_instead() {
         .assert()
         .failure()
         .stderr(predicates::str::contains("needs a terminal"))
-        .stderr(predicates::str::contains("tl line"));
+        .stderr(predicates::str::contains("tlflow line"));
 }

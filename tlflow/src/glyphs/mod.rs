@@ -53,7 +53,7 @@ impl Mode {
             Some("nerdfont") => Mode::NerdFont,
             Some("ascii") => Mode::Ascii,
             Some("unicode") => Mode::Unicode,
-            // Nerd Font support is not reliably detectable; `tl doctor` asks
+            // Nerd Font support is not reliably detectable; `tlflow doctor` asks
             // once and writes the answer to config (spec 7.1).
             _ => Mode::Unicode,
         }
@@ -234,7 +234,7 @@ mod tests {
 
     #[test]
     fn an_explicit_flag_wins_even_when_piped() {
-        // Otherwise `tl line --glyphs unicode > out.txt` silently ignores the
+        // Otherwise `tlflow line --glyphs unicode > out.txt` silently ignores the
         // flag, which is the one case where you would bother passing it.
         let cfg = Config::default();
         assert_eq!(Mode::resolve(Some("unicode"), &cfg, false), Mode::Unicode);

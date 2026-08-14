@@ -15,7 +15,7 @@ use std::io::IsTerminal;
 use std::path::Path;
 
 #[derive(Parser)]
-#[command(name = "tl", about = "Manage work as one ordered line")]
+#[command(name = "tlflow", about = "Manage work as one ordered line")]
 pub struct Cli {
     #[arg(long, global = true)]
     pub glyphs: Option<String>,
@@ -211,14 +211,14 @@ fn set_outcome(line: &mut Line, id: &Id, result: Option<String>, commit: Option<
 /// Spec 3.4: the tool owes Inquiry a prompt, not a field.
 fn inquiry_prompt(quiet: bool) {
     if !quiet {
-        eprintln!("what does that change?  tl move · tl add · tl drop");
+        eprintln!("what does that change?  tlflow move · tlflow add · tlflow drop");
     }
 }
 
 fn load() -> Result<(Line, Config, std::path::PathBuf)> {
     let cwd = std::env::current_dir()?;
     let path = io::find_line_file(&cwd)
-        .ok_or_else(|| anyhow!("no .throughline/line.md found — run `tl init` to start one"))?;
+        .ok_or_else(|| anyhow!("no .throughline/line.md found — run `tlflow init` to start one"))?;
     let root = path
         .parent()
         .and_then(|p| p.parent())
@@ -234,7 +234,7 @@ pub fn run(cli: Cli) -> Result<i32> {
     if let Some(Command::Init) = cli.command {
         let root = std::env::current_dir()?;
         init::scaffold(&root)?;
-        println!("initialised .throughline/ — run `tl` to open the line");
+        println!("initialised .throughline/ — run `tlflow` to open the line");
         return Ok(0);
     }
     if let Some(Command::Doctor) = cli.command {
@@ -453,7 +453,7 @@ pub fn run(cli: Cli) -> Result<i32> {
             if !is_tty || !std::io::stdin().is_terminal() {
                 return Err(anyhow!(
                     "the TUI needs a terminal. For non-interactive use try \
-                     `tl line`, `tl window` or `tl now` — add --json for a \
+                     `tlflow line`, `tlflow window` or `tlflow now` — add --json for a \
                      machine-readable form."
                 ));
             }

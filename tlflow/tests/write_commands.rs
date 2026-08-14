@@ -33,7 +33,7 @@ fn fixture() -> tempfile::TempDir {
 }
 
 fn tl(dir: &Path) -> Command {
-    let mut c = Command::cargo_bin("tl").unwrap();
+    let mut c = Command::cargo_bin("tlflow").unwrap();
     c.current_dir(dir);
     c
 }

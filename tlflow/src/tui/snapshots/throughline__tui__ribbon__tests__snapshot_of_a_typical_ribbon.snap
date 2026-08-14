@@ -1,5 +1,5 @@
 ---
-source: tl/src/tui/ribbon.rs
+source: tlflow/src/tui/ribbon.rs
 expression: "render(&line(5, 9), 72)"
 ---
 [x]-[x]-{[x]-[x]-[x]-|-[ ]-[ ]-[ ]-[ ]-[ ]-[ ]-[ ]}-[ ]-[ ]>
