@@ -3,6 +3,7 @@ import Base from '../layouts/Base.astro';
 import Mark from '../components/Mark.astro';
 import Ribbon from '../components/Ribbon.astro';
 import LineFigure from '../components/LineFigure.astro';
+import GithubCorner from '../components/GithubCorner.astro';
 
 const stops = [
   { id: 'start', label: 'Start' },
@@ -31,6 +32,8 @@ const vocabulary = [
   title="Throughline — Learn in cycles. Move in a line."
   description="A practice of continuous inquiry and forward flow. Work organized by sequence rather than by state."
 >
+  <GithubCorner href="https://github.com/DanielCarmingham/throughline" />
+
   <main>
     <!-- Start ------------------------------------------------------- -->
     <section class="station hero" id="start">
@@ -39,6 +42,10 @@ const vocabulary = [
         <h1 class="wordmark">Throughline</h1>
         <p class="tagline">Learn in cycles. Move in a line.</p>
         <p class="lede prose">A practice of continuous inquiry and forward flow.</p>
+        <p class="hero__jump">
+          <a href="#tool">Get the tool<span aria-hidden="true"> ↓</span></a>
+          <a href="#the-line">Read the practice<span aria-hidden="true"> ↓</span></a>
+        </p>
       </div>
     </section>
 
@@ -298,6 +305,28 @@ const vocabulary = [
     text-transform: uppercase;
     margin: 1.5rem 0 0;
     line-height: 0.95;
+  }
+
+  .hero__jump {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.75rem;
+    margin: 2.25rem 0 0;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+  }
+
+  .hero__jump a {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    padding-bottom: 0.2rem;
+    transition: border-color 0.15s ease;
+  }
+
+  .hero__jump a:hover {
+    border-bottom-color: var(--accent);
   }
 
   .tagline {
