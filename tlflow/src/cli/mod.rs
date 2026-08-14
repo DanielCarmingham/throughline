@@ -112,6 +112,8 @@ pub enum Command {
     Doctor,
     /// Seed a line from a plan document
     Plan { file: std::path::PathBuf },
+    /// Serve the line to agents as MCP tools over stdio
+    Mcp,
     /// Print a generated method-document diagram
     Diagram {
         name: Option<String>,
@@ -252,6 +254,20 @@ pub fn run(cli: Cli) -> Result<i32> {
         } else {
             println!("{}", crate::diagrams::NAMES.join("\n"));
         }
+        return Ok(0);
+    }
+
+    if let Some(Command::Mcp) = cli.command {
+        // Load once to fail fast on a missing or malformed line, then hand the
+        // paths to the server, which re-reads on every tool call.
+        let (_, _, path) = load()?;
+        let root = path
+            .parent()
+            .and_then(|p| p.parent())
+            .unwrap_or(Path::new("."))
+            .to_path_buf();
+        let rt = tokio::runtime::Runtime::new()?;
+        rt.block_on(crate::mcp::serve(path, root))?;
         return Ok(0);
     }
 

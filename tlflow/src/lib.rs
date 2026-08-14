@@ -8,3 +8,4 @@ pub mod check;
 pub mod cli;
 pub mod tui;
 pub mod diagrams;
+pub mod mcp;

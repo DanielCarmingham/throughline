@@ -20,6 +20,9 @@ ratatui = "0.29"
 crossterm = "0.28"
 terminal-light = "1.9.0"
 clap = { version = "4", features = ["derive"] }
+rmcp = { version = "2.2.0", features = ["server", "transport-io", "macros"] }
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "io-std"] }
+schemars = "1.2.2"
 
 [dev-dependencies]
 assert_cmd = "2"

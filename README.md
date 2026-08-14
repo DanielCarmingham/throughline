@@ -68,6 +68,21 @@ cargo test -p throughline      # the suite
 cargo run -p throughline -- --help
 ```
 
+## For agents
+
+`tlflow mcp` serves the line as typed MCP tools over stdio — `line`, `window`,
+`now`, `add`, `advance`, `move_item`, `check` — so an agent works from
+structured data instead of parsing terminal output. The handshake carries
+instructions that teach the vocabulary, so a fresh agent learns the practice
+without being told.
+
+```json
+{ "mcpServers": { "throughline": { "command": "tlflow", "args": ["mcp"] } } }
+```
+
+Every tool re-reads the file before acting: it is the source of truth, and a
+person may have edited it between calls.
+
 ## Layout
 
 | path | what |
