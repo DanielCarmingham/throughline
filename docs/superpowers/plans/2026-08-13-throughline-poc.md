@@ -2002,6 +2002,43 @@ mod tests {
     fn non_tty_disables_colour_entirely() {
         assert_eq!(Depth::detect(false), Depth::None);
     }
+
+    /// Spec 10: no view may construct a colour directly — every style must come
+    /// from a token. This is the enforcement, and it is cheap: grep the modules
+    /// that render for `Color::`.
+    #[test]
+    fn no_view_module_constructs_a_colour_directly() {
+        let root = concat!(env!("CARGO_MANIFEST_DIR"), "/src");
+        let mut offenders = Vec::new();
+        let mut stack = vec![std::path::PathBuf::from(root)];
+        while let Some(dir) = stack.pop() {
+            for entry in std::fs::read_dir(&dir).unwrap() {
+                let p = entry.unwrap().path();
+                if p.is_dir() {
+                    stack.push(p);
+                    continue;
+                }
+                if p.extension().and_then(|e| e.to_str()) != Some("rs") {
+                    continue;
+                }
+                // theme/mod.rs is the ONLY module allowed to name a colour.
+                if p.ends_with("theme/mod.rs") {
+                    continue;
+                }
+                let text = std::fs::read_to_string(&p).unwrap();
+                for (n, l) in text.lines().enumerate() {
+                    let code = l.split("//").next().unwrap_or("");
+                    if code.contains("Color::") || code.contains("Rgb(") {
+                        offenders.push(format!("{}:{}", p.display(), n + 1));
+                    }
+                }
+            }
+        }
+        assert!(
+            offenders.is_empty(),
+            "these lines construct a colour outside theme/: {offenders:#?}"
+        );
+    }
 }
 ```
 
@@ -2159,7 +2196,8 @@ impl Theme {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cargo test -p tl theme`
-Expected: PASS, 8 tests.
+Expected: PASS, 9 tests. (The colour lint passes trivially now and becomes
+load-bearing once `cli/render.rs` and `tui/` exist in Tasks 10–13.)
 
 - [ ] **Step 5: Commit**
 
@@ -2785,6 +2823,7 @@ use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
 use render::Ctx;
 use std::io::IsTerminal;
+use std::path::Path;
 
 #[derive(Parser)]
 #[command(name = "tl", about = "Manage a project as one ordered line")]
@@ -3159,6 +3198,51 @@ fn check_exits_non_zero_on_an_error_lint() {
 }
 
 #[test]
+fn split_promotes_children_onto_the_line_in_order() {
+    let d = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(d.path().join(".throughline")).unwrap();
+    std::fs::write(
+        d.path().join(".throughline/line.md"),
+        "# T\n\n── NOW ──\n\n- [ ] recovery  ^rrr\n      - [ ] token\n      - [ ] email\n- [ ] after  ^zzz\n",
+    )
+    .unwrap();
+
+    tl(d.path()).args(["split", "^rrr"]).assert().success();
+    let text = read(d.path());
+
+    // Children become first-class items, positioned right after the parent.
+    assert!(text.find("recovery").unwrap() < text.find("token").unwrap());
+    assert!(text.find("token").unwrap() < text.find("email").unwrap());
+    assert!(text.find("email").unwrap() < text.find("after").unwrap());
+    // And they are no longer nested under the parent.
+    assert!(!text.contains("      - [ ] token"));
+}
+
+#[test]
+fn commit_links_prefer_a_jj_change_id_when_a_jj_repo_is_present() {
+    let d = fixture();
+    std::fs::create_dir_all(d.path().join(".jj")).unwrap();
+    tl(d.path())
+        .args(["advance", "--commit", "auto"])
+        .assert()
+        .success();
+    // With `.jj` present and no jj binary reachable in the test environment,
+    // `auto` must degrade to no link rather than record a bogus revision.
+    let text = read(d.path());
+    assert!(!text.contains("@commit(auto)"), "the literal 'auto' was recorded");
+}
+
+#[test]
+fn an_explicit_commit_value_is_recorded_verbatim() {
+    let d = fixture();
+    tl(d.path())
+        .args(["advance", "--commit", "88ca65b"])
+        .assert()
+        .success();
+    assert!(read(d.path()).contains("@commit(88ca65b)"));
+}
+
+#[test]
 fn check_json_lists_findings_with_severities() {
     let d = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(d.path().join(".throughline")).unwrap();
@@ -3292,6 +3376,37 @@ fn fresh_id(line: &Line, seed: &str) -> Id {
     Id::new(format!("x{}", line.entries.len()))
 }
 
+/// Spec 4.4: a git SHA stops resolving the moment the commit is rebased or
+/// amended, so a jj change ID is preferred wherever one is available. `--commit
+/// auto` asks the repo; anything else is recorded verbatim.
+fn resolve_commit(spec: &str, root: &Path) -> Option<String> {
+    if spec != "auto" {
+        return Some(spec.to_string());
+    }
+    let run = |program: &str, args: &[&str]| -> Option<String> {
+        let out = std::process::Command::new(program)
+            .args(args)
+            .current_dir(root)
+            .output()
+            .ok()?;
+        if !out.status.success() {
+            return None;
+        }
+        let s = String::from_utf8(out.stdout).ok()?.trim().to_string();
+        if s.is_empty() { None } else { Some(s) }
+    };
+    if root.join(".jj").is_dir() {
+        // Change IDs survive rewriting; commit IDs do not.
+        if let Some(id) = run("jj", &["log", "-r", "@", "--no-graph", "-T", "change_id.short()"]) {
+            return Some(id);
+        }
+        // A .jj directory with no usable jj binary records nothing rather than
+        // a link that was never valid.
+        return None;
+    }
+    run("git", &["rev-parse", "--short", "HEAD"])
+}
+
 fn set_outcome(line: &mut Line, id: &Id, result: Option<String>, commit: Option<String>) {
     if let Some(idx) = line.index_of(&Ref::Id(id.clone())) {
         if let Entry::Item(item) = &mut line.entries[idx] {
@@ -3329,18 +3444,22 @@ Insert this block into `run`, immediately after `let (line, mut cfg, _path) = lo
             return Ok(0);
         }
         Some(Command::Advance { id, result, commit }) => {
+            let root = path.parent().and_then(|p| p.parent()).unwrap_or(Path::new("."));
+            let rev = commit.as_deref().and_then(|c| resolve_commit(c, root));
             let target = id.as_ref().map(|s| parse_ref(s));
             let passed = line.advance(target.as_ref())?;
             if let Some(last) = passed.last() {
-                set_outcome(&mut line, last, result.clone(), commit.clone());
+                set_outcome(&mut line, last, result.clone(), rev);
             }
             io::write_atomic(&path, &line)?;
             return Ok(0);
         }
         Some(Command::Done { id, result, commit }) => {
+            let root = path.parent().and_then(|p| p.parent()).unwrap_or(Path::new("."));
+            let rev = commit.as_deref().and_then(|c| resolve_commit(c, root));
             let id = Id::new(id.trim_start_matches('^'));
             line.complete(&id)?;
-            set_outcome(&mut line, &id, result.clone(), commit.clone());
+            set_outcome(&mut line, &id, result.clone(), rev);
             io::write_atomic(&path, &line)?;
             return Ok(0);
         }
@@ -3432,7 +3551,7 @@ Insert this block into `run`, immediately after `let (line, mut cfg, _path) = lo
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cargo test -p tl --test write_commands`
-Expected: PASS, 14 tests.
+Expected: PASS, 17 tests.
 
 - [ ] **Step 5: Commit**
 
@@ -3838,6 +3957,77 @@ mod tests {
         a.on_key(KeyCode::Char('d'));
         assert!(a.line.is_behind_now(&Id::new("bbb")));
     }
+
+    #[test]
+    fn a_opens_the_add_prompt_and_enter_inserts_after_the_cursor() {
+        let mut a = app();
+        a.cursor = 2; // ^bbb
+        a.on_key(KeyCode::Char('a'));
+        assert_eq!(a.prompt, Some(Prompt::Add));
+        a.buffer = "new work".into();
+        a.commit_prompt();
+
+        let titles: Vec<String> = a.line.items().map(|i| i.title.clone()).collect();
+        assert_eq!(titles, ["a", "b", "new work", "c", "d"]);
+        assert!(a.dirty);
+    }
+
+    #[test]
+    fn s_prefills_the_sharpen_prompt_with_the_existing_body() {
+        let mut a = app();
+        a.cursor = 2;
+        a.on_key(KeyCode::Char('s'));
+        assert_eq!(a.prompt, Some(Prompt::Sharpen));
+        a.buffer = "why b matters".into();
+        a.commit_prompt();
+        assert_eq!(
+            a.line.item(&Id::new("bbb")).unwrap().description,
+            vec!["why b matters".to_string()]
+        );
+    }
+
+    #[test]
+    fn m_places_a_marker_after_the_cursor() {
+        let mut a = app();
+        a.cursor = 2;
+        a.on_key(KeyCode::Char('m'));
+        a.buffer = "v0.2".into();
+        a.commit_prompt();
+        assert!(a.line.entries.iter().any(|e| matches!(
+            e,
+            crate::model::Entry::Marker(m) if m.label == "v0.2"
+        )));
+    }
+
+    #[test]
+    fn slash_searches_and_moves_the_cursor_without_writing() {
+        let mut a = app();
+        a.on_key(KeyCode::Char('/'));
+        a.buffer = "d".into();
+        a.commit_prompt();
+        assert_eq!(a.cursor, 4); // ^ddd
+        assert!(!a.dirty, "search must not modify the line");
+    }
+
+    #[test]
+    fn an_empty_prompt_is_a_no_op() {
+        let mut a = app();
+        let before = a.line.entries.len();
+        a.on_key(KeyCode::Char('a'));
+        a.commit_prompt();
+        assert_eq!(a.line.entries.len(), before);
+        assert!(!a.dirty);
+    }
+
+    #[test]
+    fn question_mark_toggles_help() {
+        let mut a = app();
+        assert!(!a.help);
+        a.on_key(KeyCode::Char('?'));
+        assert!(a.help);
+        a.on_key(KeyCode::Char('?'));
+        assert!(!a.help);
+    }
 }
 ```
 
@@ -3908,7 +4098,8 @@ pub mod ribbon;
 
 use crate::config::Config;
 use crate::glyphs::{Glyphs, Mode};
-use crate::model::Line;
+// `ratatui::prelude::*` also exports `Line`, so alias ours to keep them apart.
+use crate::model::Line as ProjectLine;
 use crate::theme::{Depth, Theme};
 use crate::view;
 use anyhow::Result;
@@ -3918,7 +4109,7 @@ use ratatui::prelude::*;
 use ratatui::widgets::Paragraph;
 use std::path::Path;
 
-pub fn launch(line: Line, cfg: Config, path: &Path, mode: Mode, theme_variant: crate::theme::Variant) -> Result<()> {
+pub fn launch(line: ProjectLine, cfg: Config, path: &Path, mode: Mode, theme_variant: crate::theme::Variant) -> Result<()> {
     enable_raw_mode()?;
     let mut out = std::io::stdout();
     crossterm::execute!(out, EnterAlternateScreen)?;
@@ -3933,6 +4124,22 @@ pub fn launch(line: Line, cfg: Config, path: &Path, mode: Mode, theme_variant: c
         term.draw(|f| draw(f, &app, &glyphs, &theme))?;
         if let Event::Key(k) = event::read()? {
             if k.kind != KeyEventKind::Press {
+                continue;
+            }
+            // While a prompt is open, keys feed the buffer instead of the keymap.
+            if app.prompt.is_some() {
+                match k.code {
+                    crossterm::event::KeyCode::Enter => app.commit_prompt(),
+                    crossterm::event::KeyCode::Esc => {
+                        app.prompt = None;
+                        app.buffer.clear();
+                    }
+                    crossterm::event::KeyCode::Backspace => {
+                        app.buffer.pop();
+                    }
+                    crossterm::event::KeyCode::Char(c) => app.buffer.push(c),
+                    _ => {}
+                }
                 continue;
             }
             if app::Action::Quit == app.on_key(k.code) {
@@ -3977,7 +4184,7 @@ Prepend to `tl/src/tui/app.rs`:
 
 ```rust
 use crate::config::Config;
-use crate::model::{Entry, Id, Line, Position, Ref};
+use crate::model::{Entry, Id, Item, Line, Marker, Position, Ref};
 use crate::theme::Variant;
 use crossterm::event::KeyCode;
 
@@ -3987,6 +4194,14 @@ pub enum Action {
     Quit,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Prompt {
+    Add,
+    Sharpen,
+    Mark,
+    Search,
+}
+
 pub struct App {
     pub line: Line,
     /// A VIEW position. Now is data; the cursor is where you are looking.
@@ -3994,12 +4209,24 @@ pub struct App {
     pub cfg: Config,
     pub dirty: bool,
     pub variant: Variant,
+    pub prompt: Option<Prompt>,
+    pub buffer: String,
+    pub help: bool,
 }
 
 impl App {
     pub fn new(line: Line, cfg: Config) -> App {
         let cursor = line.now_index();
-        App { line, cursor, cfg, dirty: false, variant: Variant::Dark }
+        App {
+            line,
+            cursor,
+            cfg,
+            dirty: false,
+            variant: Variant::Dark,
+            prompt: None,
+            buffer: String::new(),
+            help: false,
+        }
     }
 
     fn cursor_id(&self) -> Option<Id> {
@@ -4064,9 +4291,78 @@ impl App {
                     }
                 }
             }
+            KeyCode::Char('a') => {
+                self.prompt = Some(Prompt::Add);
+                self.buffer.clear();
+            }
+            KeyCode::Char('s') => {
+                self.prompt = Some(Prompt::Sharpen);
+                self.buffer = self
+                    .cursor_id()
+                    .and_then(|id| self.line.item(&id).map(|i| i.description.join(" ")))
+                    .unwrap_or_default();
+            }
+            KeyCode::Char('m') => {
+                self.prompt = Some(Prompt::Mark);
+                self.buffer.clear();
+            }
+            KeyCode::Char('/') => {
+                self.prompt = Some(Prompt::Search);
+                self.buffer.clear();
+            }
+            KeyCode::Char('?') => self.help = !self.help,
             _ => {}
         }
         Action::None
+    }
+
+    /// Apply whatever the open prompt was collecting. Called on Enter.
+    pub fn commit_prompt(&mut self) {
+        let text = std::mem::take(&mut self.buffer);
+        let Some(prompt) = self.prompt.take() else { return };
+        if text.is_empty() {
+            return;
+        }
+        let anchor = ref_at(&self.line, self.cursor);
+        match (prompt, anchor) {
+            (Prompt::Add, Some(a)) => {
+                let id = crate::cli::fresh_id(&self.line, &text);
+                if self
+                    .line
+                    .insert(Entry::Item(Item::new(id, text)), &Position::After(a))
+                    .is_ok()
+                {
+                    self.cursor += 1;
+                    self.dirty = true;
+                }
+            }
+            (Prompt::Mark, Some(a)) => {
+                if self
+                    .line
+                    .insert(Entry::Marker(Marker { label: text }), &Position::After(a))
+                    .is_ok()
+                {
+                    self.dirty = true;
+                }
+            }
+            (Prompt::Sharpen, _) => {
+                if let Entry::Item(item) = &mut self.line.entries[self.cursor] {
+                    item.description = text.lines().map(str::to_string).collect();
+                    self.dirty = true;
+                }
+            }
+            (Prompt::Search, _) => {
+                let needle = text.to_lowercase();
+                if let Some(found) = self.line.entries.iter().position(|e| match e {
+                    Entry::Item(i) => i.title.to_lowercase().contains(&needle),
+                    Entry::Marker(m) => m.label.to_lowercase().contains(&needle),
+                    Entry::Now => false,
+                }) {
+                    self.cursor = found;
+                }
+            }
+            _ => {}
+        }
     }
 }
 
@@ -4173,11 +4469,632 @@ Replace the `_ => 0..line.entries.len(),` arm of the `span` match with:
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cargo test -p tl tui` then `cargo insta accept`, then re-run.
-Expected: PASS, 14 tests.
+Expected: PASS, 20 tests.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add tl/
 git commit -m "feat(tui): window list, app state, keymap, and the two-zoom-level screen"
+```
+
+---
+
+### Task 14: `tl init`, `tl doctor`, `tl plan`
+
+**Files:**
+- Create: `tl/src/cli/init.rs`, `tl/tests/init_commands.rs`
+- Modify: `tl/src/cli/mod.rs`
+- Test: `tl/tests/init_commands.rs`
+
+**Interfaces:**
+- Consumes: `io::write_atomic` from Task 5; `Glyphs`, `Mode` from Task 7.
+- Produces: `Command::{Init, Doctor, Plan}`; `init::scaffold(&Path) -> Result<()>`, `init::sample_rows() -> String`, `init::from_plan(&Path, &Path) -> Result<Line>`.
+
+`tl init` writes the agent stanza; that is what makes the vocabulary available
+to Claude and Codex without being told each session (spec 6.2).
+
+- [ ] **Step 1: Write the failing test**
+
+Create `tl/tests/init_commands.rs`:
+
+```rust
+use assert_cmd::Command;
+use std::path::Path;
+
+fn tl(dir: &Path) -> Command {
+    let mut c = Command::cargo_bin("tl").unwrap();
+    c.current_dir(dir);
+    c
+}
+
+#[test]
+fn init_creates_a_parseable_line_and_the_agent_stanza() {
+    let d = tempfile::tempdir().unwrap();
+    tl(d.path()).arg("init").assert().success();
+
+    assert!(d.path().join(".throughline/line.md").is_file());
+    assert!(d.path().join("THROUGHLINE.md").is_file());
+    assert!(d.path().join("AGENTS.md").is_file());
+
+    // The freshly created line must be readable by the tool itself.
+    tl(d.path()).arg("line").assert().success();
+}
+
+#[test]
+fn init_is_idempotent_and_never_clobbers_an_existing_line() {
+    let d = tempfile::tempdir().unwrap();
+    tl(d.path()).arg("init").assert().success();
+    std::fs::write(
+        d.path().join(".throughline/line.md"),
+        "# Mine\n\n── NOW ──\n\n- [ ] keep me  ^kkk\n",
+    )
+    .unwrap();
+    tl(d.path()).arg("init").assert().success();
+
+    let text = std::fs::read_to_string(d.path().join(".throughline/line.md")).unwrap();
+    assert!(text.contains("keep me"));
+}
+
+#[test]
+fn the_agent_stanza_names_the_commands_and_the_discipline() {
+    let d = tempfile::tempdir().unwrap();
+    tl(d.path()).arg("init").assert().success();
+    let text = std::fs::read_to_string(d.path().join("AGENTS.md")).unwrap();
+    for needle in ["tl window", "tl add", "tl advance", "tl check", "behind Now"] {
+        assert!(text.contains(needle), "AGENTS.md is missing {needle}");
+    }
+}
+
+#[test]
+fn doctor_prints_all_three_glyph_modes_for_comparison() {
+    let d = tempfile::tempdir().unwrap();
+    tl(d.path()).arg("init").assert().success();
+    let out = tl(d.path()).arg("doctor").assert().success();
+    let text = String::from_utf8(out.get_output().stdout.clone()).unwrap();
+    assert!(text.contains("nerdfont"));
+    assert!(text.contains("unicode"));
+    assert!(text.contains("ascii"));
+}
+
+#[test]
+fn plan_seeds_a_line_from_a_markdown_document() {
+    let d = tempfile::tempdir().unwrap();
+    tl(d.path()).arg("init").assert().success();
+    std::fs::write(
+        d.path().join("plan.md"),
+        "# A Plan\n\n### Task 1: First thing\n\nbody\n\n### Task 2: Second thing\n\nbody\n",
+    )
+    .unwrap();
+
+    tl(d.path()).args(["plan", "plan.md"]).assert().success();
+    let text = std::fs::read_to_string(d.path().join(".throughline/line.md")).unwrap();
+    assert!(text.contains("First thing"));
+    assert!(text.contains("Second thing"));
+    assert!(text.find("First thing").unwrap() < text.find("Second thing").unwrap());
+}
+
+#[test]
+fn plan_places_seeded_work_ahead_of_now() {
+    let d = tempfile::tempdir().unwrap();
+    tl(d.path()).arg("init").assert().success();
+    std::fs::write(d.path().join("p.md"), "### Task 1: Only thing\n").unwrap();
+    tl(d.path()).args(["plan", "p.md"]).assert().success();
+
+    let text = std::fs::read_to_string(d.path().join(".throughline/line.md")).unwrap();
+    assert!(text.find("── NOW ──").unwrap() < text.find("Only thing").unwrap());
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cargo test -p tl --test init_commands`
+Expected: FAIL — `error: unrecognized subcommand 'init'`.
+
+- [ ] **Step 3: Write minimal implementation**
+
+Add to the `Command` enum in `tl/src/cli/mod.rs`:
+
+```rust
+    /// Create .throughline/, a method summary, and the agent stanza
+    Init,
+    /// Re-run glyph and theme capability detection
+    Doctor,
+    /// Seed a line from a plan document
+    Plan { file: std::path::PathBuf },
+```
+
+Create `tl/src/cli/init.rs`:
+
+```rust
+use crate::format::io;
+use crate::glyphs::{Glyphs, Mode, Role};
+use crate::model::{Entry, Id, Item, Line};
+use anyhow::Result;
+use std::path::Path;
+
+const THROUGHLINE_MD: &str = "\
+# Throughline
+
+This project is managed as one ordered line running from past, through Now,
+into the future. `.throughline/line.md` is that line.
+
+- **Status is position.** Done is not a flag, it is a location: behind Now.
+- **Markers are landmarks, not buckets.** \"After launch\" is a place on the
+  line, not a container.
+- **The Window is a view.** Now is stored; the window is wherever you look.
+- **Planning is progressive.** Detail decreases with distance from Now.
+
+Vocabulary: the Line, Now, the Window. Move it forward on the Line. That is
+outside the current Window. Do not create a post-launch bucket — put it after
+launch.
+";
+
+const AGENTS_MD: &str = "\
+## Throughline
+
+Project work lives in `.throughline/line.md` as one ordered line. Read it in
+full for complete context: it is simultaneously the plan, the queue, and the
+record.
+
+- `tl window --json` — what is currently in focus
+- `tl now --json` — the next item ahead of Now
+- `tl add \"title\" --after <ref>` — placement is required; there is no backlog
+- `tl advance --result \"what happened\"` — completion moves Now forward
+- `tl check` — lint the line against the method before finishing
+
+Completion is position, not state: an item is done when it sits **behind Now**.
+Record what actually happened with `--result`; that is where the project keeps
+what it learned.
+";
+
+pub fn scaffold(root: &Path) -> Result<()> {
+    let line_path = root.join(".throughline/line.md");
+    if !line_path.exists() {
+        let line = Line {
+            title: "Throughline".into(),
+            entries: vec![
+                Entry::Now,
+                Entry::Item({
+                    let mut i = Item::new(Id::new("aaa"), "decide what comes first");
+                    i.description = vec!["Placement is the thinking; put it where it belongs.".into()];
+                    i
+                }),
+            ],
+        };
+        io::write_atomic(&line_path, &line)?;
+    }
+    for (name, body) in [("THROUGHLINE.md", THROUGHLINE_MD), ("AGENTS.md", AGENTS_MD)] {
+        let p = root.join(name);
+        if !p.exists() {
+            std::fs::write(p, body)?;
+        }
+    }
+    Ok(())
+}
+
+/// The same row rendered three ways, so the user picks by looking rather than
+/// by guessing whether a Nerd Font is installed (spec 7.1).
+pub fn sample_rows() -> String {
+    let mut out = String::new();
+    for (name, mode) in [
+        ("nerdfont", Mode::NerdFont),
+        ("unicode", Mode::Unicode),
+        ("ascii", Mode::Ascii),
+    ] {
+        let g = Glyphs::for_mode(mode);
+        out.push_str(&format!(
+            "{:>9}  {} {} {} {} {} {} {}\n",
+            name,
+            g.get(Role::Done),
+            g.get(Role::Done),
+            g.get(Role::Now),
+            g.get(Role::Open),
+            g.get(Role::Marker),
+            g.get(Role::Open),
+            g.get(Role::Arrow),
+        ));
+    }
+    out.push_str("\nSet your choice with: tl --glyphs <mode>, TL_GLYPHS, or\n");
+    out.push_str(".throughline/config.toml -> glyphs = \"<mode>\"\n");
+    out
+}
+
+/// Seed items from `### Task N: Title` headings, in document order.
+pub fn from_plan(plan: &Path, line: &mut Line) -> Result<()> {
+    let text = std::fs::read_to_string(plan)?;
+    let mut anchor = crate::model::Ref::Now;
+    for raw in text.lines() {
+        let Some(rest) = raw.strip_prefix("### ") else { continue };
+        let title = match rest.split_once(':') {
+            Some((_, t)) => t.trim(),
+            None => rest.trim(),
+        };
+        if title.is_empty() {
+            continue;
+        }
+        let id = super::fresh_id(line, title);
+        line.insert(
+            Entry::Item(Item::new(id.clone(), title)),
+            &crate::model::Position::After(anchor.clone()),
+        )?;
+        anchor = crate::model::Ref::Id(id);
+    }
+    Ok(())
+}
+```
+
+In `tl/src/cli/mod.rs`, add `pub mod init;`, make `fresh_id` `pub(crate)`, and
+handle the three commands *before* `load()` (since `init` runs where no line
+exists yet). Insert at the very top of `run`:
+
+```rust
+    if let Some(Command::Init) = cli.command {
+        let root = std::env::current_dir()?;
+        init::scaffold(&root)?;
+        println!("initialised .throughline/ — run `tl` to open the line");
+        return Ok(0);
+    }
+    if let Some(Command::Doctor) = cli.command {
+        print!("{}", init::sample_rows());
+        return Ok(0);
+    }
+```
+
+And in the write-command match block, add:
+
+```rust
+        Some(Command::Plan { file }) => {
+            init::from_plan(file, &mut line)?;
+            io::write_atomic(&path, &line)?;
+            return Ok(0);
+        }
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `cargo test -p tl --test init_commands`
+Expected: PASS, 6 tests.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add tl/
+git commit -m "feat(cli): init scaffolding, doctor glyph picker, and plan seeding"
+```
+
+---
+
+### Task 15: Generated diagrams
+
+**Files:**
+- Create: `tl/src/diagrams.rs`, `tl/tests/diagrams.rs`
+- Modify: `tl/src/lib.rs`, `tl/src/cli/mod.rs`
+- Test: `tl/tests/diagrams.rs`
+
+**Interfaces:**
+- Consumes: `parse` from Task 3; `ribbon::build`/`plain` from Task 12; `Glyphs`, `Mode` from Task 7.
+- Produces: `diagrams::NAMES: [&str; 7]`, `diagrams::render(name: &str) -> Option<String>`; `Command::Diagram { name: Option<String> }`.
+
+Spec 9.3: the seven line-shaped diagrams are generated so `docs/method.md`
+cannot drift from the tool's real output. The test that enforces this asserts
+each rendered diagram appears verbatim in the document.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `tl/tests/diagrams.rs`:
+
+```rust
+use assert_cmd::Command;
+
+#[test]
+fn every_named_diagram_renders_something() {
+    for name in tl::diagrams::NAMES {
+        let out = tl::diagrams::render(name)
+            .unwrap_or_else(|| panic!("{name} rendered nothing"));
+        assert!(out.contains('│') || out.contains('●') || out.contains('○'),
+                "{name} does not look like a line: {out}");
+    }
+}
+
+#[test]
+fn diagrams_use_the_unicode_glyph_set_not_ascii() {
+    let out = tl::diagrams::render("the-line").unwrap();
+    assert!(!out.contains("[x]"), "diagrams must be unicode, not ascii (spec 9.3)");
+}
+
+#[test]
+fn an_unknown_diagram_name_is_none() {
+    assert!(tl::diagrams::render("nope").is_none());
+}
+
+#[test]
+fn the_cli_can_print_a_diagram_by_name() {
+    Command::cargo_bin("tl")
+        .unwrap()
+        .args(["diagram", "the-line"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn every_generated_diagram_appears_verbatim_in_the_method_document() {
+    let doc = std::fs::read_to_string(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../docs/method.md"),
+    )
+    .expect("docs/method.md must exist");
+
+    for name in tl::diagrams::NAMES {
+        let rendered = tl::diagrams::render(name).unwrap();
+        assert!(
+            doc.contains(rendered.trim_end()),
+            "docs/method.md has drifted from `tl diagram {name}`.\n\
+             Regenerate with: tl diagram --all"
+        );
+    }
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cargo test -p tl --test diagrams`
+Expected: FAIL — `could not find diagrams in tl`.
+
+- [ ] **Step 3: Write minimal implementation**
+
+Add `pub mod diagrams;` to `tl/src/lib.rs`. Create `tl/src/diagrams.rs`:
+
+```rust
+use crate::config::Config;
+use crate::format::parse;
+use crate::glyphs::{Glyphs, Mode};
+use crate::model::{Line, Ref};
+use crate::tui::ribbon::{build, plain};
+use crate::view;
+
+/// The seven line-shaped diagrams from spec 9.2.
+pub const NAMES: [&str; 7] = [
+    "the-line",
+    "sliding-window",
+    "selected-slice",
+    "landmark-not-bucket",
+    "history-months",
+    "markers-after-launch",
+    "window-is-a-view",
+];
+
+fn fixture(past: &[&str], future: &[&str], markers: &[(usize, &str)]) -> Line {
+    let mut src = String::from("# Diagram\n\n");
+    for (n, t) in past.iter().enumerate() {
+        src.push_str(&format!("- [x] {t}  ^p{n}\n"));
+    }
+    src.push_str("\n── NOW ──\n\n");
+    for (n, t) in future.iter().enumerate() {
+        if let Some((_, label)) = markers.iter().find(|(at, _)| *at == n) {
+            src.push_str(&format!("\n◆ {label} ◆\n\n"));
+        }
+        src.push_str(&format!("- [ ] {t}  ^f{n}\n"));
+    }
+    parse(&src).unwrap()
+}
+
+fn ribbon(line: &Line, cfg: &Config) -> String {
+    let w = view::window(line, cfg);
+    plain(&build(line, w, &Glyphs::for_mode(Mode::Unicode), 200))
+}
+
+pub fn render(name: &str) -> Option<String> {
+    let cfg = Config::default();
+    Some(match name {
+        "the-line" => {
+            let l = fixture(&["a", "b", "c", "d"], &["e", "f", "g", "h"], &[]);
+            format!(
+                "PAST                    NOW                   FUTURE\n{}\n",
+                ribbon(&l, &Config { window_back: 0, window_ahead: 0, ..cfg })
+            )
+        }
+        "sliding-window" => {
+            let l = fixture(&["a", "b", "c", "d"], &["e", "f", "g", "h", "i"], &[]);
+            format!("{}\n            the window moves forward\n", ribbon(&l, &cfg))
+        }
+        "selected-slice" => {
+            let l = fixture(&["a", "b", "c", "d", "e"], &["f", "g"], &[]);
+            let s = view::slice(&l, &Ref::Id(crate::model::Id::new("p1")), &Ref::Id(crate::model::Id::new("p3")))?;
+            format!(
+                "{}\n         a slice answers: what happened here?\n",
+                plain(&build(&l, s, &Glyphs::for_mode(Mode::Unicode), 200))
+            )
+        }
+        "landmark-not-bucket" | "markers-after-launch" => {
+            let l = fixture(&["a", "b"], &["c", "d", "e", "f"], &[(2, "launch")]);
+            format!(
+                "{}\n                        work after launch is a PLACE,\n                        not a bucket\n",
+                ribbon(&l, &cfg)
+            )
+        }
+        "history-months" => {
+            let l = fixture(
+                &["discovery", "prototype", "experiment"],
+                &["release", "learn"],
+                &[],
+            );
+            format!(
+                "JAN         FEB         MAR         APR         MAY\n{}\n",
+                ribbon(&l, &Config { window_back: 0, window_ahead: 0, ..cfg })
+            )
+        }
+        "window-is-a-view" => {
+            let l = fixture(&["a", "b", "c", "d", "e", "f"], &["g", "h", "i", "j"], &[]);
+            let back = view::slice(&l, &Ref::Id(crate::model::Id::new("p0")), &Ref::Id(crate::model::Id::new("p2")))?;
+            let fwd = view::slice(&l, &Ref::Id(crate::model::Id::new("f1")), &Ref::Id(crate::model::Id::new("f3")))?;
+            format!(
+                "reviewing March:\n{}\n\nplanning Q3:\n{}\n\n        one line, two readers, no copies\n",
+                plain(&build(&l, back, &Glyphs::for_mode(Mode::Unicode), 200)),
+                plain(&build(&l, fwd, &Glyphs::for_mode(Mode::Unicode), 200)),
+            )
+        }
+        _ => return None,
+    })
+}
+```
+
+Add to the `Command` enum in `tl/src/cli/mod.rs`:
+
+```rust
+    /// Print a generated method-document diagram
+    Diagram {
+        name: Option<String>,
+        #[arg(long)]
+        all: bool,
+    },
+```
+
+And handle it at the top of `run`, next to `Init` and `Doctor`:
+
+```rust
+    if let Some(Command::Diagram { name, all }) = &cli.command {
+        if *all {
+            for n in crate::diagrams::NAMES {
+                println!("<!-- diagram: {n} -->\n```\n{}```\n", crate::diagrams::render(n).unwrap());
+            }
+        } else if let Some(n) = name {
+            match crate::diagrams::render(n) {
+                Some(d) => print!("{d}"),
+                None => return Err(anyhow!("no diagram named {n}")),
+            }
+        }
+        return Ok(0);
+    }
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `cargo test -p tl --test diagrams`
+Expected: FAIL on the last test only — `docs/method.md must exist`. That test is
+satisfied by Task 16; the other four must pass now.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add tl/
+git commit -m "feat(diagrams): generate the seven line-shaped method diagrams"
+```
+
+---
+
+### Task 16: `docs/method.md`
+
+**Files:**
+- Create: `docs/method.md`
+- Test: `tl/tests/diagrams.rs::every_generated_diagram_appears_verbatim_in_the_method_document` (written in Task 15)
+
+**Interfaces:**
+- Consumes: `tl diagram --all` from Task 15.
+- Produces: nothing consumed by later tasks.
+
+- [ ] **Step 1: Run the failing test**
+
+Run: `cargo test -p tl --test diagrams every_generated`
+Expected: FAIL — `docs/method.md must exist`.
+
+- [ ] **Step 2: Generate the diagram blocks**
+
+```bash
+cargo run -p tl -- diagram --all > /tmp/tl-diagrams.md
+```
+
+- [ ] **Step 3: Write the document**
+
+Create `docs/method.md` with these sections, in this order. Each numbered
+section states one claim and carries the diagram that argues it. Prose is drawn
+from spec sections 2 and 3; do not invent new claims.
+
+| § | title | diagram | source |
+|---|---|---|---|
+| 1 | The project is a line | `the-line` | generated |
+| 2 | Work is cyclical, but progress is linear | PDSA circle, then the same cycle unrolled onto time | hand-drawn |
+| 3 | The sliding window | `sliding-window` | generated |
+| 4 | Any slice tells a story | `selected-slice` | generated |
+| 5 | Strict ordering | `A → B → C → D` | hand-drawn |
+| 6 | Hierarchy exists, but should be rare | a task tree beside the same work spread on the line | hand-drawn |
+| 7 | Avoid temporal buckets | `landmark-not-bucket` | generated |
+| 8 | History is first-class | `history-months` | generated |
+| 9 | Planning is progressive | detail density fading with distance | hand-drawn |
+| 10 | The core model | (none — a list) | — |
+| 11 | Status is position | one item crossing Now, before and after | hand-drawn |
+| 12 | Markers are landmarks | `markers-after-launch` | generated |
+| 13 | The Window is a view | `window-is-a-view` | generated |
+| 14 | The central inversion | Kanban's moving cards beside "you are here" | hand-drawn |
+| 15 | Using `tl` | the ribbon above the window list | hand-drawn |
+
+Paste the generated blocks from `/tmp/tl-diagrams.md` verbatim into their
+sections — including the `<!-- diagram: name -->` comment, which marks them as
+generated and tells the next reader not to hand-edit them.
+
+Hand-drawn diagrams use the same unicode glyph vocabulary: `●` `○` `◆` `│` `▶`.
+Do not use ascii forms; spec 9.3 reserves those for degraded terminals.
+
+- [ ] **Step 4: Run the test to verify it passes**
+
+Run: `cargo test -p tl --test diagrams`
+Expected: PASS, 5 tests.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add docs/method.md
+git commit -m "docs: the Throughline Method, with generated and hand-drawn diagrams"
+```
+
+---
+
+### Task 17: Dogfood
+
+**Files:**
+- Create: `.throughline/line.md`, `README.md`
+- Test: manual, plus `tl check`
+
+**Interfaces:**
+- Consumes: the whole binary.
+- Produces: nothing.
+
+- [ ] **Step 1: Seed the line from this plan**
+
+```bash
+cargo run -p tl -- init
+cargo run -p tl -- plan docs/superpowers/plans/2026-08-13-throughline-poc.md
+```
+
+- [ ] **Step 2: Record the work already done**
+
+Every task in this plan is finished by the time this runs, so move them behind
+Now with the result each one produced. For each of the seventeen seeded items,
+run `tl done` with a one-line result. For example:
+
+```bash
+cargo run -p tl -- done ^<id> --result "Line, entries, and position queries; 4 tests."
+```
+
+- [ ] **Step 3: Add the work that comes next**
+
+```bash
+cargo run -p tl -- mark "v0.1 — tl manages its own line" --after now
+cargo run -p tl -- add "MCP server over stdio" --end
+cargo run -p tl -- add "user-authored themes" --end
+```
+
+- [ ] **Step 4: Verify the line passes its own lints**
+
+Run: `cargo run -p tl -- check`
+Expected: exit 0. Warnings about unsharpened items are acceptable; any error
+lint is a bug in either the line or the tool and must be fixed before commit.
+
+Then open it: `cargo run -p tl` — confirm the ribbon shows the whole project
+with the window bracketed, and that `j`/`k`/`n` move without writing.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add .throughline/line.md README.md
+git commit -m "chore: manage Throughline in Throughline"
 ```
