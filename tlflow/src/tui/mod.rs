@@ -6,7 +6,9 @@ use crate::config::Config;
 use crate::glyphs::{Glyphs, Mode};
 // `ratatui::prelude::*` also exports `Line`, so alias ours to keep them apart.
 use crate::model::Line as ProjectLine;
-use crate::theme::{Depth, Theme, Token, Variant};
+use crate::theme::{Theme, Token};
+#[cfg(test)]
+use crate::theme::{Depth, Variant};
 use crate::view;
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
@@ -25,7 +27,7 @@ pub fn launch(
     cfg: Config,
     path: &Path,
     mode: Mode,
-    theme_variant: Variant,
+    theme: Theme,
 ) -> Result<()> {
     enable_raw_mode()?;
     let mut out = std::io::stdout();
@@ -33,7 +35,7 @@ pub fn launch(
     let mut term = Terminal::new(CrosstermBackend::new(out))?;
 
     let mut app = app::App::new(line, cfg);
-    app.variant = theme_variant;
+    app.theme = theme;
     let glyphs = Glyphs::for_mode(mode);
 
     let result = run_loop(&mut term, &mut app, &glyphs, path);
@@ -51,7 +53,7 @@ fn run_loop<B: Backend>(
     path: &Path,
 ) -> Result<()> {
     loop {
-        let theme = Theme::new(app.variant, Depth::True);
+        let theme = app.theme.clone();
         term.draw(|f| draw(f, app, glyphs, &theme))?;
 
         if let Event::Key(k) = event::read()? {

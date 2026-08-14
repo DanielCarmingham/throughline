@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::model::{Entry, Id, Item, Line, Marker, Position, Ref};
-use crate::theme::Variant;
+use crate::theme::{Depth, Theme, Variant};
 use crossterm::event::KeyCode;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -23,7 +23,7 @@ pub struct App {
     pub cursor: usize,
     pub cfg: Config,
     pub dirty: bool,
-    pub variant: Variant,
+    pub theme: Theme,
     pub prompt: Option<Prompt>,
     pub buffer: String,
     pub help: bool,
@@ -37,7 +37,7 @@ impl App {
             cursor,
             cfg,
             dirty: false,
-            variant: Variant::Dark,
+            theme: Theme::new(Variant::Dark, Depth::True),
             prompt: None,
             buffer: String::new(),
             help: false,
@@ -64,12 +64,7 @@ impl App {
             KeyCode::Char('[') => {
                 self.cfg.window_ahead = self.cfg.window_ahead.saturating_sub(1).max(1)
             }
-            KeyCode::Char('t') => {
-                self.variant = match self.variant {
-                    Variant::Dark => Variant::Light,
-                    Variant::Light => Variant::Dark,
-                }
-            }
+            KeyCode::Char('t') => self.theme.toggle_variant(),
             KeyCode::Char('J') if self.cursor < last => {
                 let here = self.cursor;
                 let what = ref_at(&self.line, here);
@@ -282,9 +277,9 @@ mod tests {
     #[test]
     fn t_toggles_the_theme_variant() {
         let mut a = app();
-        let before = a.variant;
+        let before = a.theme.variant();
         a.on_key(KeyCode::Char('t'));
-        assert_ne!(a.variant, before);
+        assert_ne!(a.theme.variant(), before);
     }
 
     #[test]

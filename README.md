@@ -83,6 +83,31 @@ without being told.
 Every tool re-reads the file before acting: it is the source of truth, and a
 person may have edited it between calls.
 
+## Themes
+
+Two ship built in — `dark` and `light`. A user theme is a TOML file naming only
+the tokens it changes:
+
+```toml
+# .throughline/themes/solarized.toml
+base = "dark"
+
+[tokens]
+now     = "#268bd2"
+marker  = "#d33682"
+past    = "#586e75"
+blocked = "#cb4b16"
+```
+
+```
+tlflow --theme solarized      # or TL_THEME, or theme = in config.toml
+tlflow doctor                 # lists what is available
+```
+
+Unknown token names are an error, not silence — a typo that quietly does
+nothing leaves a theme looking almost right with no way to tell which line is
+dead.
+
 ## Layout
 
 | path | what |

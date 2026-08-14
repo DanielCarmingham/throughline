@@ -1,0 +1,8 @@
+# A user theme only names what it changes; everything else comes from `base`.
+base = "dark"
+
+[tokens]
+now     = "#268bd2"
+marker  = "#d33682"
+past    = "#586e75"
+blocked = "#cb4b16"

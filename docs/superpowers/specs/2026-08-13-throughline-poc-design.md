@@ -629,7 +629,8 @@ Test-driven throughout.
 **Explicitly out of scope:**
 
 - Multiple projects or lines per repository.
-- User-authored themes (the token layer makes this a later addition).
+- ~~User-authored themes~~ — shipped after the POC; the token layer made it
+  a drop-in, as predicted.
 - Any web, server, or sync component.
 - Multi-user or collaboration features; git is the collaboration mechanism.
 - An event log or time-travel beyond what git or jj history provides.

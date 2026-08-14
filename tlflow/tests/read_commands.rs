@@ -158,3 +158,28 @@ fn launching_the_tui_without_a_terminal_says_what_to_do_instead() {
         .stderr(predicates::str::contains("needs a terminal"))
         .stderr(predicates::str::contains("tlflow line"));
 }
+
+#[test]
+fn color_always_emits_escape_codes_even_when_piped() {
+    let d = fixture();
+    let out = tl(d.path())
+        .args(["line", "--color", "always"])
+        .assert()
+        .success();
+    let text = String::from_utf8(out.get_output().stdout.clone()).unwrap();
+    assert!(
+        text.contains('\u{1b}'),
+        "--color always produced no escape codes when piped"
+    );
+}
+
+#[test]
+fn an_unknown_theme_name_fails_with_guidance() {
+    let d = fixture();
+    tl(d.path())
+        .args(["line", "--theme", "nope"])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("no theme named nope"))
+        .stderr(predicates::str::contains(".throughline/themes"));
+}

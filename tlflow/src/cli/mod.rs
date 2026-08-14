@@ -223,6 +223,24 @@ fn inquiry_prompt(quiet: bool) {
     }
 }
 
+/// A named theme may be built in or a user file. Anything explicitly asked for
+/// must exist — silently falling back to dark would hide a typo.
+fn resolve_theme(
+    flag: Option<&str>,
+    cfg: &Config,
+    depth: Depth,
+    root: &Path,
+) -> Result<Theme> {
+    let named = flag
+        .map(str::to_string)
+        .or_else(|| std::env::var("TL_THEME").ok())
+        .or_else(|| cfg.theme.clone());
+    match named {
+        Some(name) => Theme::load(&name, depth, root).map_err(|e| anyhow!(e)),
+        None => Ok(Theme::new(Variant::resolve(None, cfg), depth)),
+    }
+}
+
 fn load() -> Result<(Line, Config, std::path::PathBuf)> {
     let cwd = std::env::current_dir()?;
     let path = io::find_line_file(&cwd)
@@ -247,6 +265,8 @@ pub fn run(cli: Cli) -> Result<i32> {
     }
     if let Some(Command::Doctor) = cli.command {
         print!("{}", init::sample_rows());
+        let root = std::env::current_dir()?;
+        println!("\nthemes: {}", Theme::available(&root).join(", "));
         return Ok(0);
     }
     if let Some(Command::Diagram { name, all }) = &cli.command {
@@ -280,10 +300,10 @@ pub fn run(cli: Cli) -> Result<i32> {
     let (mut line, mut cfg, path) = load()?;
 
     let is_tty = std::io::stdout().is_terminal();
-    let colour_on = match cli.color.as_str() {
-        "always" => true,
-        "never" => false,
-        _ => is_tty,
+    let force_colour = match cli.color.as_str() {
+        "always" => Some(true),
+        "never" => Some(false),
+        _ => None,
     };
     // Write commands mutate and persist, then return. They run before `ctx`
     // borrows the line immutably.
@@ -430,12 +450,11 @@ pub fn run(cli: Cli) -> Result<i32> {
         _ => {}
     }
 
+    let depth = Depth::resolve(force_colour, is_tty);
+    let theme = resolve_theme(cli.theme.as_deref(), &cfg, depth, &root)?;
     let ctx = Ctx {
         glyphs: Glyphs::for_mode(Mode::resolve(cli.glyphs.as_deref(), &cfg, is_tty)),
-        theme: Theme::new(
-            Variant::resolve(cli.theme.as_deref(), &cfg),
-            if colour_on { Depth::detect(is_tty) } else { Depth::None },
-        ),
+        theme,
         line: &line,
     };
 
@@ -492,8 +511,10 @@ pub fn run(cli: Cli) -> Result<i32> {
                 ));
             }
             let mode = Mode::resolve(cli.glyphs.as_deref(), &cfg, is_tty);
-            let variant = Variant::resolve(cli.theme.as_deref(), &cfg);
-            crate::tui::launch(line, cfg, &path, mode, variant)?;
+            // Validate the theme before entering the alternate screen, so a
+            // bad name is a plain error rather than a flash of raw terminal.
+            let theme = resolve_theme(cli.theme.as_deref(), &cfg, Depth::True, &root)?;
+            crate::tui::launch(line, cfg, &path, mode, theme)?;
             return Ok(0);
         }
         _ => 0..line.entries.len(),

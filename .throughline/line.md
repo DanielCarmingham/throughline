@@ -51,6 +51,6 @@
 ── NOW ──
 
 - [ ] user-authored themes  ^a67
-      The token layer already makes this a drop-in; needs a theme file format and a loader.
+      TOML theme files overriding the 13 semantic tokens, with a base to inherit from. Must reject unknown token names — a typo that silently does nothing is worse than an error.
 - [ ] publish tlflow as a released binary  ^hky
       Cross-compiled binaries per platform, plus an install path that is not cargo build.

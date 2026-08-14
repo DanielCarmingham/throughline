@@ -1,7 +1,11 @@
 use crate::config::Config;
 use ratatui::style::{Color, Modifier, Style};
+use serde::Deserialize;
+use std::collections::HashMap;
+use std::path::Path;
+use thiserror::Error;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Token {
     Past,
     Now,
@@ -52,10 +56,8 @@ impl Variant {
 }
 
 impl Depth {
-    pub fn detect(is_tty: bool) -> Depth {
-        if !is_tty || std::env::var_os("NO_COLOR").is_some() {
-            return Depth::None;
-        }
+    /// Terminal colour capability, ignoring whether colour is wanted.
+    fn capability() -> Depth {
         match std::env::var("COLORTERM").as_deref() {
             Ok("truecolor") | Ok("24bit") => Depth::True,
             _ => match std::env::var("TERM") {
@@ -64,11 +66,104 @@ impl Depth {
             },
         }
     }
+
+    /// `force` is `--color always/never`; `None` means auto.
+    ///
+    /// An explicit `--color always` must win over both the TTY check and
+    /// NO_COLOR — it is an instruction, not a preference. Auto still declines
+    /// to colour a pipe, which is what keeps agent-facing output clean.
+    pub fn resolve(force: Option<bool>, is_tty: bool) -> Depth {
+        match force {
+            Some(false) => Depth::None,
+            Some(true) => match Depth::capability() {
+                // A forced request on a terminal claiming no colour still gets
+                // the lowest real tier rather than nothing.
+                Depth::None => Depth::Ansi16,
+                d => d,
+            },
+            None => {
+                if !is_tty || std::env::var_os("NO_COLOR").is_some() {
+                    Depth::None
+                } else {
+                    Depth::capability()
+                }
+            }
+        }
+    }
+
+    pub fn detect(is_tty: bool) -> Depth {
+        Depth::resolve(None, is_tty)
+    }
 }
 
+#[derive(Clone, Debug)]
 pub struct Theme {
     variant: Variant,
     depth: Depth,
+    /// Per-token colour overrides from a user theme file. The built-in variant
+    /// remains the base, so a theme only has to name what it changes.
+    overrides: HashMap<Token, (u8, u8, u8)>,
+}
+
+/// Every token, by the name a theme file uses.
+const TOKEN_NAMES: [(&str, Token); 13] = [
+    ("past", Token::Past),
+    ("now", Token::Now),
+    ("near", Token::Near),
+    ("mid", Token::Mid),
+    ("far", Token::Far),
+    ("marker", Token::Marker),
+    ("blocked", Token::Blocked),
+    ("dropped", Token::Dropped),
+    ("cursor", Token::Cursor),
+    ("window", Token::Window),
+    ("muted", Token::Muted),
+    ("bg", Token::Bg),
+    ("fg", Token::Fg),
+]; 
+
+#[derive(Debug, Error, PartialEq, Eq)]
+pub enum ThemeError {
+    #[error("no theme named {0}. Built-in: dark, light. User themes live in \
+             .throughline/themes/<name>.toml")]
+    NotFound(String),
+    #[error("{file}: unknown token {token:?}. Valid tokens: {valid}")]
+    UnknownToken { file: String, token: String, valid: String },
+    #[error("{file}: token {token:?} has invalid colour {value:?} — expected #rrggbb")]
+    BadColour { file: String, token: String, value: String },
+    #[error("{file}: base must be \"dark\" or \"light\", got {base:?}")]
+    BadBase { file: String, base: String },
+    #[error("{0}")]
+    Unreadable(String),
+}
+
+#[derive(Deserialize)]
+struct ThemeFile {
+    #[serde(default)]
+    base: Option<String>,
+    #[serde(default)]
+    tokens: std::collections::BTreeMap<String, String>,
+}
+
+fn parse_hex(v: &str) -> Option<(u8, u8, u8)> {
+    let h = v.strip_prefix('#')?;
+    if h.len() != 6 || !h.chars().all(|c| c.is_ascii_hexdigit()) {
+        return None;
+    }
+    Some((
+        u8::from_str_radix(&h[0..2], 16).ok()?,
+        u8::from_str_radix(&h[2..4], 16).ok()?,
+        u8::from_str_radix(&h[4..6], 16).ok()?,
+    ))
+}
+
+/// Search order for a named theme: project first, then user config.
+pub fn theme_paths(name: &str, root: &Path) -> Vec<std::path::PathBuf> {
+    let mut v = vec![root.join(".throughline/themes").join(format!("{name}.toml"))];
+    if let Some(c) = dirs::config_dir() {
+        v.push(c.join("throughline/themes").join(format!("{name}.toml")));
+    }
+    v
 }
 
 /// (r, g, b, ansi16 fallback)
@@ -76,7 +171,97 @@ type Swatch = (u8, u8, u8, Color);
 
 impl Theme {
     pub fn new(variant: Variant, depth: Depth) -> Theme {
-        Theme { variant, depth }
+        Theme { variant, depth, overrides: HashMap::new() }
+    }
+
+    /// Load a named theme. Built-in names resolve without touching disk;
+    /// anything else is looked up as a file.
+    pub fn load(name: &str, depth: Depth, root: &Path) -> Result<Theme, ThemeError> {
+        match name {
+            "dark" => return Ok(Theme::new(Variant::Dark, depth)),
+            "light" => return Ok(Theme::new(Variant::Light, depth)),
+            _ => {}
+        }
+        let path = theme_paths(name, root)
+            .into_iter()
+            .find(|p| p.is_file())
+            .ok_or_else(|| ThemeError::NotFound(name.to_string()))?;
+        let text = std::fs::read_to_string(&path)
+            .map_err(|e| ThemeError::Unreadable(format!("{}: {e}", path.display())))?;
+        let file: ThemeFile = toml::from_str(&text)
+            .map_err(|e| ThemeError::Unreadable(format!("{}: {e}", path.display())))?;
+
+        let label = path.display().to_string();
+        let variant = match file.base.as_deref() {
+            None | Some("dark") => Variant::Dark,
+            Some("light") => Variant::Light,
+            Some(other) => {
+                return Err(ThemeError::BadBase {
+                    file: label,
+                    base: other.to_string(),
+                })
+            }
+        };
+
+        let valid: Vec<&str> = TOKEN_NAMES.iter().map(|(n, _)| *n).collect();
+        let mut overrides = HashMap::new();
+        for (k, v) in &file.tokens {
+            // A silently-ignored typo is worse than an error: the theme would
+            // look almost right and nobody would know which line was dead.
+            let tok = TOKEN_NAMES
+                .iter()
+                .find(|(n, _)| n == k)
+                .map(|(_, t)| *t)
+                .ok_or_else(|| ThemeError::UnknownToken {
+                    file: label.clone(),
+                    token: k.clone(),
+                    valid: valid.join(", "),
+                })?;
+            let rgb = parse_hex(v).ok_or_else(|| ThemeError::BadColour {
+                file: label.clone(),
+                token: k.clone(),
+                value: v.clone(),
+            })?;
+            overrides.insert(tok, rgb);
+        }
+        Ok(Theme { variant, depth, overrides })
+    }
+
+    /// Names of themes available here, built-ins first.
+    pub fn available(root: &Path) -> Vec<String> {
+        let mut out = vec!["dark".to_string(), "light".to_string()];
+        let mut dirs_to_scan = vec![root.join(".throughline/themes")];
+        if let Some(c) = dirs::config_dir() {
+            dirs_to_scan.push(c.join("throughline/themes"));
+        }
+        for d in dirs_to_scan {
+            if let Ok(rd) = std::fs::read_dir(d) {
+                for e in rd.flatten() {
+                    let p = e.path();
+                    if p.extension().and_then(|x| x.to_str()) == Some("toml") {
+                        if let Some(stem) = p.file_stem().and_then(|x| x.to_str()) {
+                            if !out.iter().any(|n| n == stem) {
+                                out.push(stem.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    pub fn variant(&self) -> Variant {
+        self.variant
+    }
+
+    /// Flip between the built-in variants, keeping any user overrides. A theme
+    /// based on dark can therefore be viewed light without losing its colours.
+    pub fn toggle_variant(&mut self) {
+        self.variant = match self.variant {
+            Variant::Dark => Variant::Light,
+            Variant::Light => Variant::Dark,
+        };
     }
 
     pub fn style(&self, token: Token) -> Style {
@@ -124,6 +309,16 @@ impl Theme {
     }
 
     fn swatch(&self, token: Token) -> Swatch {
+        if let Some(&(r, g, b)) = self.overrides.get(&token) {
+            // Keep the base variant's indexed fallback: a user theme supplies
+            // truecolour, and degrading it to 16 colours is guesswork.
+            let (_, _, _, fallback) = self.builtin(token);
+            return (r, g, b, fallback);
+        }
+        self.builtin(token)
+    }
+
+    fn builtin(&self, token: Token) -> Swatch {
         match self.variant {
             // Dark: navy ground, electric cyan accent; fades toward black.
             Variant::Dark => match token {
@@ -252,6 +447,24 @@ mod tests {
         assert_eq!(Depth::detect(false), Depth::None);
     }
 
+    #[test]
+    fn color_always_wins_over_the_tty_check() {
+        // `--color always` on a pipe previously produced no escape codes at
+        // all: the flag was computed and then thrown away by a detect() that
+        // short-circuits on !is_tty. Same bug class as --glyphs being ignored.
+        assert_ne!(Depth::resolve(Some(true), false), Depth::None);
+    }
+
+    #[test]
+    fn color_never_wins_over_a_terminal() {
+        assert_eq!(Depth::resolve(Some(false), true), Depth::None);
+    }
+
+    #[test]
+    fn auto_declines_to_colour_a_pipe() {
+        assert_eq!(Depth::resolve(None, false), Depth::None);
+    }
+
     /// Spec 10: no view may construct a colour directly — every style must come
     /// from a token. This is the enforcement, and it is cheap: grep the modules
     /// that render for `Color::`.
@@ -287,5 +500,130 @@ mod tests {
             offenders.is_empty(),
             "these lines construct a colour outside theme/: {offenders:#?}"
         );
+    }
+}
+
+#[cfg(test)]
+mod theme_file_tests {
+    use super::*;
+
+    fn write(dir: &std::path::Path, name: &str, body: &str) {
+        let d = dir.join(".throughline/themes");
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(d.join(format!("{name}.toml")), body).unwrap();
+    }
+
+    #[test]
+    fn builtin_names_resolve_without_touching_disk() {
+        let d = tempfile::tempdir().unwrap();
+        assert_eq!(
+            Theme::load("dark", Depth::True, d.path()).unwrap().variant(),
+            Variant::Dark
+        );
+        assert_eq!(
+            Theme::load("light", Depth::True, d.path()).unwrap().variant(),
+            Variant::Light
+        );
+    }
+
+    #[test]
+    fn a_user_theme_overrides_only_what_it_names() {
+        let d = tempfile::tempdir().unwrap();
+        write(d.path(), "mine", "base = \"dark\"\n[tokens]\nnow = \"#268bd2\"\n");
+        let t = Theme::load("mine", Depth::True, d.path()).unwrap();
+
+        // The named token is overridden...
+        assert_eq!(t.style(Token::Now).fg, Some(Color::Rgb(0x26, 0x8b, 0xd2)));
+        // ...and everything else still comes from the base variant.
+        let base = Theme::new(Variant::Dark, Depth::True);
+        assert_eq!(t.style(Token::Marker).fg, base.style(Token::Marker).fg);
+    }
+
+    #[test]
+    fn base_selects_which_builtin_to_inherit() {
+        let d = tempfile::tempdir().unwrap();
+        write(d.path(), "pale", "base = \"light\"\n[tokens]\nnow = \"#000001\"\n");
+        let t = Theme::load("pale", Depth::True, d.path()).unwrap();
+        assert_eq!(t.variant(), Variant::Light);
+        let light = Theme::new(Variant::Light, Depth::True);
+        assert_eq!(t.style(Token::Fg).fg, light.style(Token::Fg).fg);
+    }
+
+    #[test]
+    fn an_unknown_token_name_is_an_error_not_silence() {
+        // A typo that silently does nothing is worse than a failure: the theme
+        // looks almost right and nobody can tell which line is dead.
+        let d = tempfile::tempdir().unwrap();
+        write(d.path(), "typo", "[tokens]\nnwo = \"#112233\"\n");
+        let err = Theme::load("typo", Depth::True, d.path()).unwrap_err();
+        match err {
+            ThemeError::UnknownToken { token, valid, .. } => {
+                assert_eq!(token, "nwo");
+                assert!(valid.contains("now"), "error should list valid tokens");
+            }
+            other => panic!("expected UnknownToken, got {other}"),
+        }
+    }
+
+    #[test]
+    fn a_malformed_colour_is_rejected() {
+        let d = tempfile::tempdir().unwrap();
+        write(d.path(), "bad", "[tokens]\nnow = \"268bd2\"\n");
+        assert!(matches!(
+            Theme::load("bad", Depth::True, d.path()).unwrap_err(),
+            ThemeError::BadColour { .. }
+        ));
+
+        write(d.path(), "short", "[tokens]\nnow = \"#abc\"\n");
+        assert!(matches!(
+            Theme::load("short", Depth::True, d.path()).unwrap_err(),
+            ThemeError::BadColour { .. }
+        ));
+    }
+
+    #[test]
+    fn an_invalid_base_is_rejected() {
+        let d = tempfile::tempdir().unwrap();
+        write(d.path(), "odd", "base = \"purple\"\n[tokens]\nnow = \"#112233\"\n");
+        assert!(matches!(
+            Theme::load("odd", Depth::True, d.path()).unwrap_err(),
+            ThemeError::BadBase { .. }
+        ));
+    }
+
+    #[test]
+    fn a_missing_theme_names_the_builtins_and_where_to_put_files() {
+        let d = tempfile::tempdir().unwrap();
+        let msg = Theme::load("nope", Depth::True, d.path()).unwrap_err().to_string();
+        assert!(msg.contains("dark"), "should name the built-ins: {msg}");
+        assert!(msg.contains(".throughline/themes"), "should say where: {msg}");
+    }
+
+    #[test]
+    fn available_lists_builtins_plus_user_themes() {
+        let d = tempfile::tempdir().unwrap();
+        write(d.path(), "solarized", "[tokens]\nnow = \"#268bd2\"\n");
+        let names = Theme::available(d.path());
+        assert!(names.contains(&"dark".to_string()));
+        assert!(names.contains(&"light".to_string()));
+        assert!(names.contains(&"solarized".to_string()));
+    }
+
+    #[test]
+    fn toggling_a_user_theme_keeps_its_overrides() {
+        let d = tempfile::tempdir().unwrap();
+        write(d.path(), "mine", "base = \"dark\"\n[tokens]\nnow = \"#268bd2\"\n");
+        let mut t = Theme::load("mine", Depth::True, d.path()).unwrap();
+        t.toggle_variant();
+        assert_eq!(t.variant(), Variant::Light);
+        assert_eq!(t.style(Token::Now).fg, Some(Color::Rgb(0x26, 0x8b, 0xd2)));
+    }
+
+    #[test]
+    fn overrides_still_degrade_to_indexed_colour() {
+        let d = tempfile::tempdir().unwrap();
+        write(d.path(), "mine", "[tokens]\nnow = \"#268bd2\"\n");
+        let t = Theme::load("mine", Depth::Ansi16, d.path()).unwrap();
+        assert!(!matches!(t.style(Token::Now).fg, Some(Color::Rgb(_, _, _))));
     }
 }
