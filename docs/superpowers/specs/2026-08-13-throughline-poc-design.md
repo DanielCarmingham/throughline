@@ -1,7 +1,7 @@
 # Throughline POC — Design
 
 **Date:** 2026-08-13
-**Status:** Approved for planning
+**Status:** Approved — implementation plan next
 
 ## 1. Summary
 
@@ -334,6 +334,12 @@ the primary agent-facing feature. It exits non-zero when any lint fires.
 | `no-now` | missing or duplicated Now marker |
 | `result-ahead` | an item ahead of Now carrying a result — outcomes belong to history |
 
+**Severity.** `bucket`, `unsharpened`, and `false-certainty` are *warnings*: they
+concern vocabulary and judgement, and `tl check` still exits 0. Everything else
+is an *error* and exits non-zero. A tool that refuses to let you name a marker
+"v2" is being righteous rather than useful; `check.allow_markers` suppresses the
+`bucket` lint for specific labels.
+
 "Inside the Window" means within the default window span (`window_back` = 3,
 `window_ahead` = 7) measured from Now, not from the user's scroll position —
 lints must not depend on where someone happens to be looking. `far_body_lines`
@@ -561,7 +567,10 @@ Test-driven throughout.
 - Any web, server, or sync component.
 - Multi-user or collaboration features; git is the collaboration mechanism.
 - An event log or time-travel beyond what git or jj history provides.
-- Dependencies between items. Order expresses intent, not a dependency graph.
+- Dependencies between items. Order expresses intent, not a dependency graph,
+  and `@blocked(reason)` is the escape hatch for the exceptional case. If this
+  chafes during dogfooding, that is the signal dogfooding exists to produce —
+  it is not a gap to pre-emptively fill.
 - Any jj integration beyond change-ID preference in `@commit(rev)` (see 4.4).
 - An MCP server. The CLI plus `--json` plus non-TTY degradation already serves
   Claude and Codex. `model` and `view` stay free of I/O so this remains a thin
