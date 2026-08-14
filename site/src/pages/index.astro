@@ -1,0 +1,398 @@
+---
+import Base from '../layouts/Base.astro';
+import Mark from '../components/Mark.astro';
+import Ribbon from '../components/Ribbon.astro';
+import LineFigure from '../components/LineFigure.astro';
+
+const stops = [
+  { id: 'start', label: 'Start' },
+  { id: 'the-line', label: 'The Line' },
+  { id: 'cycles', label: 'Cycles' },
+  { id: 'now', label: 'Now' },
+  { id: 'the-window', label: 'The Window' },
+  { id: 'inquiry', label: 'Inquiry' },
+  { id: 'buckets', label: 'Buckets' },
+  { id: 'vocabulary', label: 'Vocabulary' },
+  { id: 'tool', label: 'tl' },
+];
+
+const vocabulary = [
+  ['Practice', 'The whole of it. You get better at it by doing it, and you never complete it.'],
+  ['The Line', 'The ordered continuity of work through time. Everything goes on the Line.'],
+  ['Flow', 'Movement along the Line. One direction: forward.'],
+  ['The Window', 'Our current field of attention. It moves; the project does not get rearranged.'],
+  ['Inquiry', 'The learning that decides what comes next.'],
+  ['Cycles', 'Repeated experiments, unrolled onto the Line rather than spinning in place.'],
+  ['Now', 'The constantly moving boundary between observation and intention.'],
+];
+---
+
+<Base
+  title="Throughline — Learn in cycles. Move in a line."
+  description="A practice of continuous inquiry and forward flow. Work organized by sequence rather than by state."
+>
+  <main>
+    <!-- Start ------------------------------------------------------- -->
+    <section class="station hero" id="start">
+      <div class="wrap hero__inner">
+        <Mark />
+        <h1 class="wordmark">Throughline</h1>
+        <p class="tagline">Learn in cycles. Move in a line.</p>
+        <p class="lede prose">A practice of continuous inquiry and forward flow.</p>
+      </div>
+    </section>
+
+    <!-- The Line ---------------------------------------------------- -->
+    <section class="station" id="the-line">
+      <div class="wrap">
+        <div class="prose">
+          <p class="eyebrow">The Line</p>
+          <h2>Most systems organize work by state. This one organizes it by sequence.</h2>
+          <p>
+            Backlog, ready, doing, blocked, done, someday, version two, post-launch. Each is a place
+            work can sit, and several of them quietly mean <em>not now</em>.
+          </p>
+          <p>
+            Throughline has one ordered stream instead. Every piece of work occupies a position on
+            it. Completed work becomes history rather than piling up in a column. Future work sits
+            ahead of the present, in the order we currently believe it should happen.
+          </p>
+        </div>
+        <LineFigure past={5} future={7} caption="past → now → future" />
+        <p class="pull prose">The line itself becomes the durable record of the project.</p>
+      </div>
+    </section>
+
+    <!-- Cycles ------------------------------------------------------ -->
+    <section class="station" id="cycles">
+      <div class="wrap">
+        <div class="prose">
+          <p class="eyebrow">Cycles</p>
+          <h2>The work is cyclical. The project is not.</h2>
+          <p>
+            We plan, do, study, adjust, and go again. But a project does not travel in circles — time
+            moves forward, so the cycle unrolls onto the line. Every experiment, decision,
+            adjustment, release, mistake and discovery becomes another point on it.
+          </p>
+        </div>
+        <figure class="figure">
+          <pre class="ascii" aria-label="A repeating cycle unrolled onto the line"><code>TIME ───────────────────────────────────────────────────▶
+
+ Plan → Do → Study → Adjust → Plan → Do → Study → Adjust
+ └────────── cycle ──────────┘ └────────── cycle ───────</code></pre>
+          <figcaption>the loop, unrolled</figcaption>
+        </figure>
+        <p class="pull prose">The loop is how we learn. The line is how we move.</p>
+        <p class="prose">
+          That tension is the mark at the top of this page. The curve is <span class="term"
+            >inquiry</span
+          > — try something, observe, learn, adjust. The straight run is <span class="term">flow</span
+          >. Neither dominates the other.
+        </p>
+      </div>
+    </section>
+
+    <!-- Now --------------------------------------------------------- -->
+    <section class="station" id="now">
+      <div class="wrap">
+        <div class="prose">
+          <p class="eyebrow">Now</p>
+          <h2>Done is not a state. It is a location.</h2>
+          <p>
+            <span class="term">Now</span> is the boundary between what we have observed and what we intend.
+            Finishing something means moving it behind Now — which records that it happened before everything
+            still ahead.
+          </p>
+          <p>
+            There is no completion flag to drift out of sync with reality, because completion
+            <em>is</em> the ordering.
+          </p>
+        </div>
+        <LineFigure past={7} future={5} caption="behind Now is history — ahead of it is intention" />
+      </div>
+    </section>
+
+    <!-- The Window -------------------------------------------------- -->
+    <section class="station" id="the-window">
+      <div class="wrap">
+        <div class="prose">
+          <p class="eyebrow">The Window</p>
+          <h2>Nobody has to hold the whole project in their head.</h2>
+          <p>
+            Attention is local. A window of focus slides forward along the line as work progresses —
+            early exploration, then implementation, then deployment, observation, refinement. The
+            project was never reorganized. Our attention simply moved.
+          </p>
+          <p>
+            Detail follows the same rule. Near work can be concrete because we know more about it.
+            Far work should stay coarse, because pretending otherwise manufactures certainty that
+            does not exist.
+          </p>
+        </div>
+        <LineFigure
+          past={4}
+          future={10}
+          window={[2, 7]}
+          fade={true}
+          caption="the window moves forward — and detail fades with distance"
+        />
+        <p class="pull prose">Old work isn’t clutter. It’s farther away.</p>
+      </div>
+    </section>
+
+    <!-- Inquiry ----------------------------------------------------- -->
+    <section class="station" id="inquiry">
+      <div class="wrap">
+        <div class="prose">
+          <p class="eyebrow">Inquiry</p>
+          <h2>We are not executing a plan. We are answering questions.</h2>
+          <p>
+            The unit of progress is not a completed task. It is something learned. Each pass asks the
+            same five questions, and each answer changes the line ahead.
+          </p>
+        </div>
+        <ol class="questions">
+          <li>What do we know?</li>
+          <li>What do we need to learn?</li>
+          <li>What should we try next?</li>
+          <li>What happened?</li>
+          <li>What does that change?</li>
+        </ol>
+        <p class="prose">
+          The last one is the one that moves things. An answer that changes nothing was not worth
+          asking.
+        </p>
+      </div>
+    </section>
+
+    <!-- Buckets ----------------------------------------------------- -->
+    <section class="station" id="buckets">
+      <div class="wrap">
+        <div class="prose">
+          <p class="eyebrow">Buckets</p>
+          <h2>If something should happen later, put it later.</h2>
+          <p>
+            “Post-go-live”, “version 2”, “blocked”, “someday” — these accumulate into destinations
+            where work goes to disappear. A position on the line says the same thing without
+            building a room for it.
+          </p>
+        </div>
+        <LineFigure
+          past={3}
+          future={8}
+          marker={{ at: 3, label: 'LAUNCH' }}
+          caption="post-launch work is a place, not a container"
+        />
+        <p class="pull prose">
+          Changing the order is not a failure of planning. It is planning.
+        </p>
+      </div>
+    </section>
+
+    <!-- Vocabulary -------------------------------------------------- -->
+    <section class="station" id="vocabulary">
+      <div class="wrap">
+        <div class="prose">
+          <p class="eyebrow">Vocabulary</p>
+          <h2>Seven words carry the whole practice.</h2>
+        </div>
+        <dl class="vocab">
+          {
+            vocabulary.map(([term, meaning]) => (
+              <div class="vocab__row">
+                <dt>{term}</dt>
+                <dd>{meaning}</dd>
+              </div>
+            ))
+          }
+        </dl>
+      </div>
+    </section>
+
+    <!-- tl ---------------------------------------------------------- -->
+    <section class="station" id="tool">
+      <div class="wrap">
+        <div class="prose">
+          <p class="eyebrow">tl</p>
+          <h2>A practice needs an instrument.</h2>
+          <p>
+            <span class="term">tl</span> keeps one line in one readable file in your repository. It is
+            a terminal tool and a command line at once, so a person and a coding agent can both work
+            from the same record.
+          </p>
+        </div>
+        <figure class="figure">
+          <pre class="ascii" aria-label="Example tl commands"><code><span class="c">$</span> tl window
+  ● sketch the method
+  ● pick the name
+  │ NOW
+  ○ write the method doc
+  ○ parse line.md
+
+<span class="c">$</span> tl add "ship v0.1" --after ^r7e
+<span class="c">$</span> tl advance --result "round-trip tests pass"</code></pre>
+          <figcaption>placement is required — there is no backlog to drop things into</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div class="wrap footer__inner">
+        <p class="footer__mark">tlflow.cc</p>
+        <p class="footer__tag">Learn in cycles. Move in a line.</p>
+      </div>
+    </footer>
+  </main>
+
+  <Ribbon stops={stops} />
+</Base>
+
+<style>
+  /* --- hero ----------------------------------------------------- */
+  .hero {
+    min-height: 92vh;
+    display: grid;
+    align-items: center;
+    padding-block: 4rem;
+  }
+
+  .hero__inner {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+  }
+
+  .wordmark {
+    font-variation-settings: 'wdth' 125, 'wght' 700;
+    font-size: clamp(2.4rem, 1rem + 7vw, 5.75rem);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    margin: 1.5rem 0 0;
+    line-height: 0.95;
+  }
+
+  .tagline {
+    font-variation-settings: 'wdth' 108, 'wght' 500;
+    font-size: clamp(1.05rem, 0.8rem + 1.3vw, 1.9rem);
+    color: var(--accent);
+    margin: 0.65rem 0 1.4rem;
+    text-wrap: balance;
+  }
+
+  /* --- ascii figures -------------------------------------------- */
+  .ascii {
+    font-family: var(--mono);
+    font-size: clamp(0.66rem, 0.5rem + 0.55vw, 0.9rem);
+    line-height: 1.65;
+    color: var(--text);
+    background: var(--raised);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 1.4rem 1.5rem;
+    margin: 0;
+    overflow-x: auto;
+  }
+
+  .ascii .c {
+    color: var(--accent);
+    user-select: none;
+  }
+
+  /* --- inquiry -------------------------------------------------- */
+  .questions {
+    list-style: none;
+    counter-reset: q;
+    margin: 2.5rem 0 2rem;
+    padding: 0;
+    display: grid;
+    gap: 0;
+    max-width: 48rem;
+  }
+
+  .questions li {
+    counter-increment: q;
+    display: flex;
+    gap: 1.25rem;
+    align-items: baseline;
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--rule);
+    font-variation-settings: 'wdth' 105, 'wght' 500;
+    font-size: clamp(1.05rem, 0.9rem + 0.9vw, 1.6rem);
+  }
+
+  /* Numbered because these genuinely run in order — each answer feeds
+     the next question. */
+  .questions li::before {
+    content: counter(q, decimal-leading-zero);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    flex: none;
+  }
+
+  /* --- vocabulary ----------------------------------------------- */
+  .vocab {
+    margin: 2.5rem 0 0;
+    max-width: 56rem;
+  }
+
+  .vocab__row {
+    display: grid;
+    grid-template-columns: minmax(7rem, 11rem) 1fr;
+    gap: 1.5rem;
+    padding: 1.1rem 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .vocab dt {
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+    padding-top: 0.28rem;
+  }
+
+  .vocab dd {
+    margin: 0;
+  }
+
+  @media (max-width: 34rem) {
+    .vocab__row {
+      grid-template-columns: 1fr;
+      gap: 0.4rem;
+    }
+  }
+
+  /* --- footer --------------------------------------------------- */
+  .footer {
+    border-top: 1px solid var(--rule);
+    padding-block: 3.5rem 4.5rem;
+  }
+
+  .footer__inner {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+  }
+
+  .footer__mark {
+    font-family: var(--mono);
+    font-size: 1rem;
+    letter-spacing: 0.14em;
+    color: var(--accent);
+    margin: 0;
+  }
+
+  .footer__tag {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin: 0;
+  }
+</style>

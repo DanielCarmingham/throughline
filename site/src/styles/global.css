@@ -1,0 +1,250 @@
+@import '@fontsource-variable/archivo/wdth.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+
+/* ---------------------------------------------------------------
+   Tokens. Palette is taken from the logo: navy ground, electric
+   cyan accent. Light mode is NOT an inversion — bright cyan on
+   white is unreadable, so it takes a deeper accent.
+   --------------------------------------------------------------- */
+:root {
+  --ink: #050a14;
+  --navy: #0d1b2e;
+  --navy-line: #16293f;
+  --cyan: #35bef8;
+  --cyan-deep: #0a6fa8;
+  --paper: #e8eef6;
+  --dim: #5a6e88;
+
+  /* Sampled from the logo artwork. The UI accent is a lifted sibling of
+     --logo-rim, because the true brand cyan is too dark for body text on
+     the navy ground. */
+  --logo-body: #052947;
+  --logo-rim: #05a1ea;
+  --logo-ink: #fdfdfd;
+
+  --ground: var(--ink);
+  --raised: var(--navy);
+  --text: var(--paper);
+  --accent: var(--cyan);
+  --muted: var(--dim);
+  --rule: #1b3049;
+
+  --display: 'Archivo Variable', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  --measure: 34rem;
+  --gutter: clamp(1.25rem, 5vw, 4rem);
+  --ribbon-h: 3.25rem;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --ground: #f7f9fc;
+    --raised: #ffffff;
+    --text: #0a1524;
+    --accent: var(--cyan-deep);
+    --muted: #56698a;
+    --rule: #d3deeb;
+    --navy-line: #c3d3e5;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--text);
+  font-family: var(--display);
+  font-variation-settings: 'wdth' 100, 'wght' 400;
+  font-size: clamp(1rem, 0.95rem + 0.3vw, 1.125rem);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: var(--ribbon-h);
+}
+
+/* The line runs through the whole page: one hairline down the
+   gutter that every station's marker sits on. */
+main {
+  position: relative;
+}
+
+a {
+  color: var(--accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.25em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+.wrap {
+  max-width: 72rem;
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.prose {
+  max-width: var(--measure);
+}
+
+/* --- type ------------------------------------------------------ */
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 1.25rem;
+}
+
+h1,
+h2 {
+  font-variation-settings: 'wdth' 122, 'wght' 700;
+  letter-spacing: -0.015em;
+  line-height: 1.05;
+  margin: 0 0 1rem;
+  text-wrap: balance;
+}
+
+h2 {
+  font-size: clamp(1.75rem, 1.2rem + 2.4vw, 3rem);
+}
+
+p {
+  margin: 0 0 1.15rem;
+  text-wrap: pretty;
+}
+
+.lede {
+  font-size: clamp(1.15rem, 1rem + 0.7vw, 1.5rem);
+  line-height: 1.45;
+  color: var(--text);
+}
+
+/* Terms of art are always set in mono — they are vocabulary, not
+   emphasis. */
+.term {
+  font-family: var(--mono);
+  font-size: 0.92em;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.pull {
+  font-variation-settings: 'wdth' 112, 'wght' 600;
+  font-size: clamp(1.3rem, 1rem + 1.4vw, 2rem);
+  line-height: 1.25;
+  color: var(--text);
+  margin: 2.5rem 0;
+  padding-left: 1.25rem;
+  border-left: 2px solid var(--accent);
+  text-wrap: balance;
+}
+
+/* --- stations -------------------------------------------------- */
+
+.station {
+  padding-block: clamp(5rem, 12vh, 9rem);
+  border-top: 1px solid var(--rule);
+}
+
+.station:first-of-type {
+  border-top: 0;
+}
+
+.figure {
+  margin: 2.75rem 0 0;
+}
+
+.figure svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.figure figcaption {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-top: 0.9rem;
+}
+
+/* --- diagram primitives ---------------------------------------- */
+
+.d-rule {
+  stroke: var(--rule);
+  stroke-width: 2;
+}
+.d-past {
+  fill: var(--muted);
+}
+.d-now {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+.d-open {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+}
+.d-near {
+  stroke: var(--text);
+}
+.d-marker {
+  fill: var(--accent);
+}
+.d-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  fill: var(--muted);
+}
+.d-label--now {
+  fill: var(--accent);
+}
+
+/* Each figure resolves INTO the line on entry — one gesture,
+   repeated, so the diagrams read as a single system. */
+.figure [data-anim] {
+  opacity: 0;
+  transform: translateX(-8px);
+  transition:
+    opacity 0.5s ease,
+    transform 0.5s cubic-bezier(0.2, 0.7, 0.3, 1);
+  transition-delay: calc(var(--i, 0) * 55ms);
+}
+
+.figure.is-in [data-anim] {
+  /* Each element carries its own target opacity so the progressive-detail
+     fade survives the reveal instead of being flattened to 1. */
+  opacity: var(--o, 1);
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .figure [data-anim] {
+    opacity: var(--o, 1);
+    transform: none;
+    transition: none;
+  }
+}

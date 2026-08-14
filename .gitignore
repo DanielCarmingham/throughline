@@ -5,3 +5,8 @@
 
 # dex task store — local only, IDs are ephemeral
 .dex/
+
+# astro
+site/dist/
+site/.astro/
+site/node_modules/

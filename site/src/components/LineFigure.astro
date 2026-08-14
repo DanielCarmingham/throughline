@@ -1,0 +1,135 @@
+---
+// The reusable line diagram. Every station's figure is built from this
+// so the page speaks one visual language — the same one `tl` renders.
+interface Props {
+  past?: number;
+  future?: number;
+  caption?: string;
+  window?: [number, number] | null;
+  marker?: { at: number; label: string } | null;
+  fade?: boolean;
+  slice?: [number, number] | null;
+}
+const {
+  past = 5,
+  future = 7,
+  caption,
+  window: win = null,
+  marker = null,
+  fade = false,
+  slice = null,
+} = Astro.props;
+
+const total = past + future;
+const W = 900;
+const H = 108;
+const y = 58;
+const startX = 24;
+const endX = W - 58;
+const step = (endX - startX) / (total + 1);
+const nowX = startX + step * (past + 0.5);
+
+const dots = Array.from({ length: total }, (_, i) => {
+  const isPast = i < past;
+  const x = startX + step * (i + (isPast ? 0 : 1));
+  const ahead = i - past;
+  // Far future work is drawn faintly: less certainty, less ink.
+  const opacity = !fade || isPast ? 1 : Math.max(0.24, 1 - ahead * 0.13);
+  return { x, isPast, opacity, i };
+});
+
+const bracket = win
+  ? { x1: dots[win[0]].x - step * 0.55, x2: dots[win[1]].x + step * 0.55 }
+  : null;
+const sliceBox = slice
+  ? { x1: dots[slice[0]].x - step * 0.55, x2: dots[slice[1]].x + step * 0.55 }
+  : null;
+---
+
+<figure class="figure">
+  <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={caption ?? 'The line'}>
+    <line class="d-rule" x1={startX - 14} y1={y} x2={endX + 14} y2={y}></line>
+
+    {
+      sliceBox && (
+        <g data-anim style="--i:0">
+          <rect
+            x={sliceBox.x1}
+            y={y - 22}
+            width={sliceBox.x2 - sliceBox.x1}
+            height="44"
+            rx="4"
+            fill="none"
+            stroke="var(--muted)"
+            stroke-dasharray="4 4"
+          />
+          <text class="d-label" x={(sliceBox.x1 + sliceBox.x2) / 2} y={y - 30} text-anchor="middle">
+            SELECTED SLICE
+          </text>
+        </g>
+      )
+    }
+
+    {
+      bracket && (
+        <g data-anim style="--i:1">
+          <rect
+            x={bracket.x1}
+            y={y - 20}
+            width={bracket.x2 - bracket.x1}
+            height="40"
+            rx="20"
+            fill="color-mix(in srgb, var(--cyan) 7%, transparent)"
+            stroke="color-mix(in srgb, var(--cyan) 45%, transparent)"
+          />
+          <text class="d-label" x={(bracket.x1 + bracket.x2) / 2} y={y - 28} text-anchor="middle">
+            THE WINDOW
+          </text>
+        </g>
+      )
+    }
+
+    {
+      dots.map((d) => (
+        <circle
+          data-anim
+          style={`--i:${d.i}; --o:${d.opacity}`}
+          class={d.isPast ? 'd-past' : 'd-open'}
+          cx={d.x}
+          cy={y}
+          r="6"
+        />
+      ))
+    }
+
+    {
+      marker && (
+        <g data-anim style={`--i:${marker.at}`}>
+          <path
+            class="d-marker"
+            d={`M ${startX + step * (marker.at + 1) - step * 0.5} ${y - 9}
+                l 7 9 l -7 9 l -7 -9 z`}
+          />
+          <text
+            class="d-label"
+            x={startX + step * (marker.at + 1) - step * 0.5}
+            y={y + 30}
+            text-anchor="middle"
+          >
+            {marker.label}
+          </text>
+        </g>
+      )
+    }
+
+    <g data-anim style="--i:0">
+      <line class="d-now" x1={nowX} y1={y - 20} x2={nowX} y2={y + 20}></line>
+      <text class="d-label d-label--now" x={nowX} y={y + 38} text-anchor="middle">NOW</text>
+    </g>
+
+    <path
+      class="d-marker"
+      d={`M ${endX + 14} ${y - 7} L ${endX + 32} ${y} L ${endX + 14} ${y + 7} Z`}></path>
+  </svg>
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
