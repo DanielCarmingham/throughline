@@ -53,7 +53,7 @@ fn token_for(line: &Line, index: usize, entry: &Entry) -> Token {
     }
 }
 
-/// Build the whole-project ribbon. `window` is bracketed; when the line is
+/// Build the whole-line ribbon. `window` is bracketed; when the line is
 /// wider than `width`, entries are dropped from the ends inward so that Now
 /// always survives.
 pub fn build(line: &Line, window: Span, g: &Glyphs, width: usize) -> Vec<Segment> {

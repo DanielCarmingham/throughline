@@ -4,6 +4,9 @@
 
 A practice of continuous inquiry and forward flow.
 
+Throughline helps an organization preserve the learning that turns events into
+better action.
+
 Not a method, and not a project-management framework. "Method" implies follow
 these steps. "Framework" implies here are the structures. "Project management"
 implies control the project. What follows is a way of engaging with work over
@@ -18,14 +21,15 @@ line states. Do not hand-edit them; regenerate with `tlflow diagram --all`.
 
 ---
 
-## 1. The project is a line
+## 1. The business is a line
 
 Most systems organize work by state: backlog, ready, doing, blocked, done,
 someday, version two, post-launch. Each is a place work can sit, and several of
 them quietly mean *not now*.
 
-Throughline organizes by **sequence**. Every meaningful piece of work occupies a
-position in one ordered stream running from past, through Now, into the future.
+Throughline organizes by **sequence**. Every meaningful intention, event,
+artifact, decision, exclusion and outcome occupies a position in one ordered
+stream running from past, through Now, into the future.
 
 <!-- diagram: the-line -->
 ```
@@ -33,12 +37,13 @@ PAST           NOW          FUTURE
 ●───●───●───●───│───○───○───○───○▶
 ```
 
-There is no permanent Done column accumulating hundreds of cards. Completed work
-simply becomes history. Future work sits ahead of the present, in the order we
-currently believe it should happen — it does not need to be divided prematurely
-into buckets.
+There is no permanent Done column accumulating hundreds of cards. Completed work,
+captured evidence, decisions, call summaries, screenshots, deployments and
+discoveries become history. Future work sits ahead of the present, in the order
+we currently believe it should happen — it does not need to be divided
+prematurely into buckets.
 
-The line itself becomes the durable record.
+The line itself becomes the durable business record.
 
 ## 2. Work is cyclical, but progress is linear
 
@@ -53,7 +58,7 @@ ADJUST              DO
        STUDY
 ```
 
-But a project does not literally travel in circles. Time moves forward, so the
+But progress does not literally travel in circles. Time moves forward, so the
 cycle unrolls onto the line:
 
 ```
@@ -74,7 +79,7 @@ dominates the other.
 
 ## 3. The sliding window
 
-Nobody needs to think about the entire history and future of a project at once.
+Nobody needs to think about the entire history and future of the line at once.
 Attention operates as a window over the line, and it moves forward as work
 progresses.
 
@@ -86,7 +91,7 @@ progresses.
 
 Early on the window holds exploration and foundational work. Later,
 implementation. Later still, deployment, observation, refinement, or another
-round of discovery. The project was never reorganized. Our attention moved.
+round of discovery. The line was never reorganized. Our attention moved.
 
 This is the natural answer to something other systems reach for milestones,
 sprints, archived cards and proliferating columns to express.
@@ -105,8 +110,8 @@ Look backward and a slice answers *what happened during this period*. Look
 forward and it answers *what do we currently expect*. Look around the present
 and it answers *where are we, how did we get here, and what comes next*.
 
-So the line is simultaneously the plan, the working queue, and the historical
-record. The difference between them is only where you look.
+So the line is simultaneously the plan, the working queue, the evidence trail,
+and the historical record. The difference between them is only where you look.
 
 ## 5. Strict ordering
 
@@ -181,7 +186,7 @@ JAN FEB MAR     APR MAY
 
 **Old work isn't clutter. It's farther away.**
 
-Zoom out to understand the project. Zoom in to understand a period. Move backward
+Zoom out to understand the line. Zoom in to understand a period. Move backward
 to investigate history. Move forward to inspect the plan. Return to Now to work.
 
 ## 9. Planning is progressive
@@ -304,7 +309,59 @@ The fifth question is the one that moves things, and its answer is *a changed
 line* — not a stored sentence. You answer it by reordering, adding, or dropping
 work ahead of Now. An answer that changes nothing was not worth asking.
 
-## 15. The central inversion
+## 15. Accountability is learning carried forward
+
+Throughline does not ask whether reality matched the plan. It asks whether the
+organization converted reality into learning, and learning into action.
+
+That is a different form of accountability. It is not a scorecard for whether a
+person or team delivered what they said they would deliver. A plan is a snapshot
+of what the organization believed at the time, not a promise that future reality
+must obey. Good work may ship the planned thing, but it may also invalidate an
+assumption, expose a constraint, explain why something should be excluded, or
+make the next decision better informed.
+
+Accountability means carrying learning forward until it changes what the
+organization does.
+
+That creates two responsibilities:
+
+1. **Advance knowledge.** Discover something true, useful, or clarifying.
+2. **Operationalize knowledge.** Let that discovery change the line, the
+   product, the decision, the customer conversation, the process, or the next
+   experiment.
+
+Learning without action becomes archive dust. Action without learning becomes
+churn. The practice is the loop between them.
+
+## 16. Accounting for the line
+
+As the line grows, some things need to be accounted for.
+
+An intention is accounted for when the organization can say what happened to it:
+it shipped, it taught us something, it was intentionally excluded, it was
+superseded, it was invalidated, or it remains an open thread.
+
+An event is accounted for when the organization can say what it meant: what it
+taught us, what changed because of it, or why nothing should change.
+
+This is reconciliation in the sense of sensemaking, not blame. The useful
+categories are narrative categories:
+
+- **reflected** — the intention appears in the outcome;
+- **evidenced** — the claim is supported by an artifact, observation, test,
+  screenshot, call summary, whiteboard photo or release;
+- **superseded** — a later decision replaced the old intention;
+- **intentionally excluded** — the organization chose not to carry it forward,
+  with a reason;
+- **unconnected** — there is not yet a clear link between intention, event and
+  outcome.
+
+The last category is not a failure. It is a place where the story lost
+continuity. The right response is not "who missed this?" The right response is
+"what did we learn, and what does that change?"
+
+## 17. The central inversion
 
 Kanban asks us to imagine work moving across a board:
 
@@ -326,13 +383,13 @@ Throughline asks us to imagine ourselves moving through the work:
 That inversion may be the central idea. Work doesn't move toward Done. **Time
 moves us through the work.**
 
-## 16. Using `tlflow`
+## 18. Using `tlflow`
 
 `tlflow` keeps one line in one readable file in your repository. It is a terminal UI
 and a command line at once, so a person and a coding agent can both work from the
 same record.
 
-The screen shows two zoom levels at once — the whole project as a ribbon, and
+The screen shows two zoom levels at once — the whole line as a ribbon, and
 readable titles for whatever is in the window:
 
 ```
@@ -373,7 +430,7 @@ the line.
 | term | meaning |
 |---|---|
 | **Practice** | the whole of it; you get better by doing it and never complete it |
-| **the Line** | the ordered continuity of work through time |
+| **the Line** | the ordered continuity of intentions, events, evidence and outcomes |
 | **Flow** | movement along the Line; one direction, forward |
 | **the Window** | the current field of attention |
 | **Inquiry** | the learning that decides what comes next |

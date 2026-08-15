@@ -162,7 +162,7 @@ impl Throughline {
 
     #[tool(
         description = "The whole line: history behind Now, intention ahead of it. \
-                       Read this for complete project context."
+                       Read this for complete context."
     )]
     fn line(&self) -> Json<LineOut> {
         match self.load() {

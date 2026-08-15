@@ -180,7 +180,7 @@ fn parse_hex(v: &str) -> Option<(u8, u8, u8)> {
     ))
 }
 
-/// Search order for a named theme: project first, then user config.
+/// Search order for a named theme: repo first, then user config.
 pub fn theme_paths(name: &str, root: &Path) -> Vec<std::path::PathBuf> {
     let mut v = vec![root
         .join(".throughline/themes")

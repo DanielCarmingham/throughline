@@ -4,13 +4,17 @@
 
 A practice of continuous inquiry and forward flow — **[tlflow.cc](https://tlflow.cc)**
 
+Throughline helps an organization preserve the learning that turns events into
+better action.
+
 Most systems organize work by state: backlog, ready, doing, blocked, done,
 someday, version two. Several of those quietly mean *not now*.
 
-Throughline organizes work by **sequence** instead. One ordered line runs from
-past, through Now, into the future. Completed work becomes history rather than
-piling up in a column, and future work sits ahead of the present in the order we
-currently believe it should happen.
+Throughline organizes by **sequence** instead. One ordered line runs from past,
+through Now, into the future. Intentions, events, evidence, decisions,
+exclusions and outcomes all have a place on it. Completed work and captured
+learning become history rather than piling up in a column, and future work sits
+ahead of the present in the order we currently believe it should happen.
 
 It is deliberately not a project-management methodology. You never complete a
 practice.
@@ -20,7 +24,7 @@ practice.
 | term | meaning |
 |---|---|
 | **Practice** | the whole of it; you get better by doing it and never complete it |
-| **the Line** | the ordered continuity of work through time |
+| **the Line** | the ordered continuity of intentions, events, evidence and outcomes |
 | **Flow** | movement along the Line; one direction, forward |
 | **the Window** | the current field of attention |
 | **Inquiry** | the learning that decides what comes next |
@@ -32,6 +36,10 @@ Three claims make it mechanical rather than aspirational:
 - **Status is position.** "Done" is not a flag, it is a location — behind Now.
 - **Markers are landmarks, not buckets.** "After launch" is a place on the line.
 - **The Window is a view.** Now is stored; the window is wherever you look.
+
+The point is not to measure whether reality matched the plan. A plan is a
+snapshot of what the organization believed at the time. Accountability means
+carrying learning forward until it changes what the organization does.
 
 ## `tlflow`
 
@@ -57,8 +65,8 @@ $ tlflow line
 
 Placement is required — there is no backlog to drop things into.
 
-**Status: the POC is complete.** 155 tests, clippy clean. Throughline now
-manages its own construction — `.throughline/line.md` is this project's line,
+**Status: the POC is complete.** 196 tests, clippy clean. Throughline now
+manages its own construction — `.throughline/line.md` is Throughline's own line,
 and it passes `tlflow check`.
 
 The practice is written up in [docs/method.md](docs/method.md).
@@ -126,7 +134,7 @@ dead.
 | `site/` | tlflow.cc — Astro, deployed via uncloud |
 | `docs/` | design spec and implementation plan |
 | `brand/` | logo artwork and the tracer that generates every derived asset |
-| `.throughline/` | this project's own line — Throughline, dogfooded |
+| `.throughline/` | this repo's own line — Throughline, dogfooded |
 
 ## Site deployment
 

@@ -49,8 +49,9 @@ tlflow           # opens the terminal UI
 
 ## The shape of it
 
-Work lives on **one ordered line** running from past, through **Now**, into the
-future. Everything behind Now is history; everything ahead is intention.
+Intentions, events, evidence and outcomes live on **one ordered line** running
+from past, through **Now**, into the future. Everything behind Now is history;
+everything ahead is intention.
 
 Three rules explain most of the tool:
 
@@ -143,7 +144,7 @@ document verbatim — so the prose cannot drift from the tool.
 ## The terminal UI
 
 `tlflow` with no arguments. The screen shows two zoom levels at once: the whole
-project as a ribbon, and readable titles for whatever is in the window.
+line as a ribbon, and readable titles for whatever is in the window.
 
 | key | does |
 |---|---|

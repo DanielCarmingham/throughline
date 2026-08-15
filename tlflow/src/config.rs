@@ -49,10 +49,10 @@ impl Config {
         &self.check.allow_markers
     }
 
-    /// Project config, then user config, then defaults. First hit wins.
+    /// Repo config, then user config, then defaults. First hit wins.
     pub fn load(start: &Path) -> Config {
-        let project = start.join(".throughline/config.toml");
-        if let Ok(text) = std::fs::read_to_string(&project) {
+        let repo = start.join(".throughline/config.toml");
+        if let Ok(text) = std::fs::read_to_string(&repo) {
             if let Ok(c) = toml::from_str(&text) {
                 return c;
             }

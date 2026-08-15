@@ -1,6 +1,6 @@
 ## Throughline
 
-Project work lives in `.throughline/line.md` as one ordered line. Read it in
+The work lives in `.throughline/line.md` as one ordered line. Read it in
 full for complete context: it is simultaneously the plan, the queue, and the
 record.
 

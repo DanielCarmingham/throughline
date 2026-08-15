@@ -28,7 +28,7 @@ post-launch bucket — put it after launch.
 const AGENTS_MD: &str = "\
 ## Throughline
 
-Project work lives in `.throughline/line.md` as one ordered line. Read it in
+The work lives in `.throughline/line.md` as one ordered line. Read it in
 full for complete context: it is simultaneously the plan, the queue, and the
 record.
 

@@ -5,7 +5,7 @@ pub mod ribbon;
 use crate::config::Config;
 use crate::glyphs::{Glyphs, Mode};
 // `ratatui::prelude::*` also exports `Line`, so alias ours to keep them apart.
-use crate::model::Line as ProjectLine;
+use crate::model::Line as WorkLine;
 #[cfg(test)]
 use crate::theme::{Depth, Variant};
 use crate::theme::{Theme, Token};
@@ -38,7 +38,7 @@ fn install_panic_hook() {
     }));
 }
 
-pub fn launch(line: ProjectLine, cfg: Config, path: &Path, mode: Mode, theme: Theme) -> Result<()> {
+pub fn launch(line: WorkLine, cfg: Config, path: &Path, mode: Mode, theme: Theme) -> Result<()> {
     install_panic_hook();
     enable_raw_mode()?;
     let mut out = std::io::stdout();
@@ -121,7 +121,7 @@ pub fn draw(f: &mut Frame, app: &app::App, glyphs: &Glyphs, theme: &Theme) {
     ])
     .split(f.area());
 
-    // Zoom out: the whole project as one row.
+    // Zoom out: the whole line as one row.
     let window = view::window(&app.line, &app.cfg);
     let segs = ribbon::build(&app.line, window, glyphs, chunks[0].width as usize);
     f.render_widget(Paragraph::new(to_line(&segs, theme)), chunks[0]);
@@ -161,7 +161,7 @@ mod tests {
     use crate::format::parse;
     use ratatui::backend::TestBackend;
 
-    fn sample() -> ProjectLine {
+    fn sample() -> WorkLine {
         parse("# T\n\n- [x] a  ^aaa\n\n── NOW ──\n\n- [ ] b  ^bbb\n      why b matters\n- [ ] c  ^ccc\n")
             .unwrap()
     }
@@ -208,14 +208,14 @@ mod real_line_tests {
     use super::*;
     use ratatui::backend::TestBackend;
 
-    /// Draw the project's ACTUAL line — 20+ items with long results — at many
+    /// Draw this repo's ACTUAL line — 20+ items with long results — at many
     /// terminal sizes. The other draw test uses a four-entry fixture, which is
     /// not representative of anything real.
     #[test]
-    fn draws_the_real_project_line_at_many_sizes() {
+    fn draws_the_real_line_at_many_sizes() {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../.throughline/line.md");
         let Ok(line) = crate::format::io::read(std::path::Path::new(path)) else {
-            eprintln!("no project line to test against; skipping");
+            eprintln!("no line to test against; skipping");
             return;
         };
         for (w, h) in [
