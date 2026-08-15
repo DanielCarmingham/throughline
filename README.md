@@ -128,6 +128,40 @@ dead.
 | `brand/` | logo artwork and the tracer that generates every derived asset |
 | `.throughline/` | this project's own line — Throughline, dogfooded |
 
+## Site deployment
+
+`site/` is an Astro static site packaged as a small Caddy container. Its
+`compose.yaml` follows the same uncloud-native shape used in `../webstack`:
+the container serves plain HTTP on `:80`, while uncloud's managed Caddy handles
+public TLS and hostname routing via `x-ports`.
+
+GitHub Actions deploys `tlflow.cc` through uncloud after successful checks:
+
+- pushes to `main` run CI, then deploy the website from that commit;
+- `v*` tags build the installable GitHub Release artifacts, then deploy the
+  website from the same tag.
+
+The manual path remains an uncloud operation from `site/`:
+
+```bash
+uc deploy -f compose.yaml
+```
+
+The deploy workflow installs `uc`, connects to the cluster over SSH, and runs
+the non-interactive deploy form:
+
+```bash
+uc deploy -f compose.yaml --yes
+```
+
+Required repository secrets:
+
+| secret | value |
+|---|---|
+| `UNCLOUD_CONNECT` | uncloud connection string, for example `ssh://root@host` |
+| `UNCLOUD_SSH_PRIVATE_KEY` | private SSH key allowed to reach the uncloud machine |
+| `UNCLOUD_SSH_KNOWN_HOSTS` | trusted `known_hosts` entry for that machine |
+
 ## Working on this
 
 Trunk-based: commit to `main`, no long-lived branches. A feature branch is a

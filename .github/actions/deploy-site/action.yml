@@ -1,0 +1,58 @@
+name: Deploy site
+description: Install uncloud and deploy the tlflow.cc site.
+
+inputs:
+  connect:
+    description: uncloud connection string, for example ssh://root@host.
+    required: true
+  ssh-private-key:
+    description: Private SSH key allowed to reach the uncloud machine.
+    required: true
+  ssh-known-hosts:
+    description: trusted known_hosts entry for the uncloud machine.
+    required: true
+  image-tag:
+    description: Image tag to use for the site container.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Check deploy inputs
+      shell: bash
+      run: |
+        test -n "${UNCLOUD_CONNECT}" || { echo "connect input is required"; exit 1; }
+        test -n "${UNCLOUD_SSH_PRIVATE_KEY}" || { echo "ssh-private-key input is required"; exit 1; }
+        test -n "${UNCLOUD_SSH_KNOWN_HOSTS}" || { echo "ssh-known-hosts input is required"; exit 1; }
+        test -n "${TLFLOW_SITE_IMAGE_TAG}" || { echo "image-tag input is required"; exit 1; }
+      env:
+        UNCLOUD_CONNECT: ${{ inputs.connect }}
+        UNCLOUD_SSH_PRIVATE_KEY: ${{ inputs.ssh-private-key }}
+        UNCLOUD_SSH_KNOWN_HOSTS: ${{ inputs.ssh-known-hosts }}
+        TLFLOW_SITE_IMAGE_TAG: ${{ inputs.image-tag }}
+
+    - name: Configure SSH
+      shell: bash
+      run: |
+        install -m 700 -d ~/.ssh
+        printf '%s\n' "${UNCLOUD_SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519
+        chmod 600 ~/.ssh/id_ed25519
+        printf '%s\n' "${UNCLOUD_SSH_KNOWN_HOSTS}" > ~/.ssh/known_hosts
+      env:
+        UNCLOUD_SSH_PRIVATE_KEY: ${{ inputs.ssh-private-key }}
+        UNCLOUD_SSH_KNOWN_HOSTS: ${{ inputs.ssh-known-hosts }}
+
+    - name: Install uncloud
+      shell: bash
+      run: |
+        curl -fsSL https://github.com/psviderski/uncloud/releases/latest/download/uc_linux_amd64.tar.gz | tar -xz -C /tmp
+        chmod +x /tmp/uc
+        /tmp/uc version
+
+    - name: Deploy tlflow.cc
+      shell: bash
+      run: cd site && /tmp/uc deploy -f compose.yaml --yes
+      env:
+        UNCLOUD_CONNECT: ${{ inputs.connect }}
+        UNCLOUD_AUTO_CONFIRM: "true"
+        TLFLOW_SITE_IMAGE_TAG: ${{ inputs.image-tag }}

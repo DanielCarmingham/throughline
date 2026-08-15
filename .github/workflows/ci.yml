@@ -52,3 +52,21 @@ jobs:
         working-directory: site
       - run: npm run build
         working-directory: site
+
+  deploy-site:
+    name: deploy site
+    runs-on: ubuntu-24.04
+    needs: [rust, site]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    concurrency:
+      group: site-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/deploy-site
+        with:
+          connect: ${{ secrets.UNCLOUD_CONNECT }}
+          ssh-private-key: ${{ secrets.UNCLOUD_SSH_PRIVATE_KEY }}
+          ssh-known-hosts: ${{ secrets.UNCLOUD_SSH_KNOWN_HOSTS }}
+          image-tag: ${{ github.sha }}

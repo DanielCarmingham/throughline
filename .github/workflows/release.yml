@@ -122,3 +122,22 @@ jobs:
             ```
 
             The practice: <https://tlflow.cc> · The manual: `docs/manual.md`
+
+  deploy-site:
+    name: deploy site
+    needs: release
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: site-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: ./.github/actions/deploy-site
+        with:
+          connect: ${{ secrets.UNCLOUD_CONNECT }}
+          ssh-private-key: ${{ secrets.UNCLOUD_SSH_PRIVATE_KEY }}
+          ssh-known-hosts: ${{ secrets.UNCLOUD_SSH_KNOWN_HOSTS }}
+          image-tag: ${{ inputs.tag || github.ref_name }}

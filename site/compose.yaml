@@ -1,6 +1,6 @@
 services:
   tlflow:
-    image: tlflow:latest
+    image: tlflow:${TLFLOW_SITE_IMAGE_TAG:-latest}
     build:
       context: .
       # The cluster runs amd64. Without this, a build from an Apple Silicon
