@@ -4,17 +4,18 @@
 
 A practice of continuous inquiry and forward flow — **[tlflow.cc](https://tlflow.cc)**
 
-Throughline helps an organization preserve the learning that turns events into
-better action.
+Throughline is a learning log for an organization: one ordered record of what it
+intended, what happened, what that taught, and what changed because of it.
 
 Most systems organize work by state: backlog, ready, doing, blocked, done,
 someday, version two. Several of those quietly mean *not now*.
 
-Throughline organizes by **sequence** instead. One ordered line runs from past,
-through Now, into the future. Intentions, events, evidence, decisions,
-exclusions and outcomes all have a place on it. Completed work and captured
-learning become history rather than piling up in a column, and future work sits
-ahead of the present in the order we currently believe it should happen.
+Throughline organizes by **sequence** instead. One ordered learning log runs
+from past, through Now, into the future. Intentions, events, evidence,
+decisions, exclusions and outcomes all have a place on it because each can teach
+the organization something. Completed work and captured learning become history
+rather than piling up in a column, and future work sits ahead of the present in
+the order we currently believe it should happen.
 
 It is deliberately not a project-management methodology. You never complete a
 practice.
@@ -24,7 +25,7 @@ practice.
 | term | meaning |
 |---|---|
 | **Practice** | the whole of it; you get better by doing it and never complete it |
-| **the Line** | the ordered continuity of intentions, events, evidence and outcomes |
+| **the Line** | the learning log ordered through time |
 | **Flow** | movement along the Line; one direction, forward |
 | **the Window** | the current field of attention |
 | **Inquiry** | the learning that decides what comes next |

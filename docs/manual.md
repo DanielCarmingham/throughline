@@ -49,9 +49,11 @@ tlflow           # opens the terminal UI
 
 ## The shape of it
 
-Intentions, events, evidence and outcomes live on **one ordered line** running
-from past, through **Now**, into the future. Everything behind Now is history;
-everything ahead is intention.
+Intentions, events, evidence and outcomes live in **one ordered learning log**
+running from past, through **Now**, into the future. Everything behind Now is
+history; everything ahead is intention. The point is not to list tasks done or
+decisions made; it is to preserve what the organization learned and what that
+learning changed.
 
 Three rules explain most of the tool:
 

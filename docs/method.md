@@ -4,8 +4,8 @@
 
 A practice of continuous inquiry and forward flow.
 
-Throughline helps an organization preserve the learning that turns events into
-better action.
+Throughline is a learning log for an organization: one ordered record of what it
+intended, what happened, what that taught, and what changed because of it.
 
 Not a method, and not a project-management framework. "Method" implies follow
 these steps. "Framework" implies here are the structures. "Project management"
@@ -29,7 +29,7 @@ them quietly mean *not now*.
 
 Throughline organizes by **sequence**. Every meaningful intention, event,
 artifact, decision, exclusion and outcome occupies a position in one ordered
-stream running from past, through Now, into the future.
+learning log running from past, through Now, into the future.
 
 <!-- diagram: the-line -->
 ```
@@ -39,11 +39,11 @@ PAST           NOW          FUTURE
 
 There is no permanent Done column accumulating hundreds of cards. Completed work,
 captured evidence, decisions, call summaries, screenshots, deployments and
-discoveries become history. Future work sits ahead of the present, in the order
-we currently believe it should happen — it does not need to be divided
-prematurely into buckets.
+discoveries become part of what the organization has learned. Future work sits
+ahead of the present, in the order we currently believe it should happen — it
+does not need to be divided prematurely into buckets.
 
-The line itself becomes the durable business record.
+The line itself becomes the durable learning record.
 
 ## 2. Work is cyclical, but progress is linear
 
@@ -111,7 +111,8 @@ forward and it answers *what do we currently expect*. Look around the present
 and it answers *where are we, how did we get here, and what comes next*.
 
 So the line is simultaneously the plan, the working queue, the evidence trail,
-and the historical record. The difference between them is only where you look.
+and the historical record. Those are views over the learning log, not separate
+systems.
 
 ## 5. Strict ordering
 
@@ -213,8 +214,8 @@ separate ceremony.
 
 The whole thing stays small. Conceptually we need:
 
-1. **A line** — the ordered history and future of the work
-2. **Work items** — things worth doing
+1. **A line** — the learning log ordered through time
+2. **Entries** — intentions, events, evidence and outcomes worth preserving
 3. **A Now position** — the boundary between history and intention
 4. **A window** — the portion currently receiving attention
 5. **Limited hierarchy** — decomposition where the pieces genuinely form one whole
@@ -280,7 +281,8 @@ people looking at different spans are looking at the same data.
 
 ## 14. Inquiry
 
-The unit of progress is not a completed task. It is something learned.
+The unit of progress is not a completed task or a decision made. It is
+something learned and carried forward.
 
 Each pass asks the same five questions:
 
@@ -385,9 +387,9 @@ moves us through the work.**
 
 ## 18. Using `tlflow`
 
-`tlflow` keeps one line in one readable file in your repository. It is a terminal UI
-and a command line at once, so a person and a coding agent can both work from the
-same record.
+`tlflow` keeps one learning log in one readable file in your repository. It is a
+terminal UI and a command line at once, so a person and a coding agent can both
+work from the same record.
 
 The screen shows two zoom levels at once — the whole line as a ribbon, and
 readable titles for whatever is in the window:
@@ -430,7 +432,7 @@ the line.
 | term | meaning |
 |---|---|
 | **Practice** | the whole of it; you get better by doing it and never complete it |
-| **the Line** | the ordered continuity of intentions, events, evidence and outcomes |
+| **the Line** | the learning log ordered through time |
 | **Flow** | movement along the Line; one direction, forward |
 | **the Window** | the current field of attention |
 | **Inquiry** | the learning that decides what comes next |

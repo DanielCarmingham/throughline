@@ -55,8 +55,10 @@
 - [x] reframe Throughline around learning continuity  ^reb
       Documentation-only reframing: Throughline as a business line connecting intentions, events, evidence, outcomes, and learning. Keep accountability non-punitive: learning must be carried forward into action; tooling can follow after the idea settles.
       → Documentation reframed Throughline around learning continuity: a business line of intentions, events, evidence, outcomes, and accountability as learning carried into action. Tooling deliberately left behind the idea so it can catch up after the model settles.
+- [x] center Throughline as a learning log  ^wvm
+      → Docs and site now characterize Throughline first as a learning log: an ordered record of intentions, events, evidence, outcomes, what they taught, and what changed. That sharpens the next model-design work around preserving learning rather than tracking completed tasks or decisions.
 
 ── NOW ──
 
 - [ ] design event/evidence model for tlflow  ^8h5
-      Figure out the smallest model change that lets tlflow represent intentions, events, evidence, outcomes, exclusions, and unconnected threads without turning reconciliation into punitive metrics. Start from documentation language before changing file format or commands.
+      Figure out the smallest model change that lets tlflow preserve a learning log: intentions, events, evidence, outcomes, exclusions, and unconnected threads, plus what each taught and what changed because of it. Keep reconciliation non-punitive; the model should help an organization account for learning continuity, not score delivery against a plan. Start from documentation language before changing file format or commands.
