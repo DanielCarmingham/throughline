@@ -72,6 +72,18 @@ The practice is iterative without the structure itself being cyclical. Every
 experiment, decision, adjustment, release, mistake and discovery becomes another
 point on the line.
 
+Inquiry is what manages that cycle in Throughline. The line does not store a
+separate PDSA object; it stores what each pass taught.
+
+```
+PDSA                      THROUGHLINE
+
+Plan       ───────────▶   intention ahead of Now
+Do         ───────────▶   event, artifact, release, conversation
+Study      ───────────▶   result: what happened, what did we learn?
+Adjust     ───────────▶   changed line: move, add, drop, sharpen
+```
+
 **The loop is how we learn. The line is how we move.**
 
 That tension is the mark: the curve is Inquiry, the arrow is Flow, and neither
@@ -224,6 +236,12 @@ The whole thing stays small. Conceptually we need:
 
 Everything else has to justify its existence.
 
+The current tool still represents entries as items in the file format. That is a
+mechanical term, not a claim that everything on the line is a task. An item can
+stand for work to try, evidence to interpret, a decision to revisit, an exclusion
+to explain, or an outcome to account for. The practice is already broader than
+the file vocabulary; the model can catch up without losing the line.
+
 ## 11. Status is position
 
 "Done" is not a state. It is a location: **behind Now**.
@@ -358,6 +376,23 @@ categories are narrative categories:
   with a reason;
 - **unconnected** — there is not yet a clear link between intention, event and
   outcome.
+
+```
+accounted for:
+
+intention ───── evidence/event ───── outcome
+    │                 │                 │
+    └────── what did this teach? ───────┘
+                      │
+                      ▼
+              what changed because of it?
+
+not yet accounted for:
+
+intention ───── evidence/event      outcome
+    │                 │               │
+    └──── story loses continuity ─────┘
+```
 
 The last category is not a failure. It is a place where the story lost
 continuity. The right response is not "who missed this?" The right response is

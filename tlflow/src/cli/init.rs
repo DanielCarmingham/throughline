@@ -9,16 +9,17 @@ const THROUGHLINE_MD: &str = "\
 
 *Learn in cycles. Move in a line.*
 
-A practice of continuous inquiry and forward flow. Work lives on one ordered
-line running from past, through Now, into the future. `.throughline/line.md`
-is that line.
+A practice of continuous inquiry and forward flow. Intentions, events, evidence
+and outcomes live in one ordered learning log running from past, through Now,
+into the future. `.throughline/line.md` is that line.
 
 - **Status is position.** Done is not a flag, it is a location: behind Now.
 - **Markers are landmarks, not buckets.** \"After launch\" is a place on the
   line, not a container.
 - **The Window is a view.** Now is stored; the window is wherever you look.
 - **Planning is progressive.** Detail decreases with distance from Now.
-- **Inquiry decides what comes next.** What happened, and what does that change?
+- **Inquiry manages the cycle.** What happened, what did we learn, and what does
+  that change?
 
 Vocabulary: Practice, the Line, Flow, the Window, Inquiry, Cycles, Now. Move it
 forward on the Line. That is outside the current Window. Do not create a
@@ -28,19 +29,21 @@ post-launch bucket — put it after launch.
 const AGENTS_MD: &str = "\
 ## Throughline
 
-The work lives in `.throughline/line.md` as one ordered line. Read it in
-full for complete context: it is simultaneously the plan, the queue, and the
-record.
+The learning log lives in `.throughline/line.md` as one ordered line. Read it in
+full for complete context: it is simultaneously the plan, the queue, the
+evidence trail, and the historical record.
 
 - `tlflow window --json` — what is currently in focus
 - `tlflow now --json` — the next item ahead of Now
 - `tlflow add \"title\" --after <ref>` — placement is required; there is no backlog
-- `tlflow advance --result \"what happened\"` — completion moves Now forward
+- `tlflow advance --result \"what happened\"` — completion or accounting moves Now forward
 - `tlflow check` — lint the line against the practice before finishing
 
 Run `tlflow --help` for refs and examples; docs/manual.md is the full reference.
 
 Completion is position, not state: an item is done when it sits **behind Now**.
+The file format calls entries items, but the practice can use them for
+intentions, events, evidence, outcomes, exclusions, and follow-up threads.
 Record what actually happened with `--result`; that is where the practice keeps
 what it learned.
 

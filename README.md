@@ -45,7 +45,7 @@ carrying learning forward until it changes what the organization does.
 ## `tlflow`
 
 A single Rust binary — a terminal UI and a command line at once, so a person and
-a coding agent can both work from the same record. One line lives in one
+a coding agent can both work from the same learning log. One line lives in one
 readable Markdown file in your repository.
 
 ```

@@ -64,6 +64,10 @@ Three rules explain most of the tool:
 - **The file is the source of truth.** `.throughline/line.md` is plain Markdown.
   Hand-edit it freely; `tlflow fmt` normalises what is derived.
 
+The file format still calls each list entry an item. Treat that as the tool's
+mechanical noun. In the practice, an item may be an intention, event, evidence,
+outcome, exclusion, or follow-up thread.
+
 ## Refs
 
 Anything taking a `<ref>` accepts:
@@ -94,7 +98,7 @@ tlflow add "cleanup" --after v0.1        # "post-launch" is a PLACE
 tlflow add "someday thing" --end
 ```
 
-Completing work — both of these are moves, not flags:
+Completing or accounting for an entry — both of these are moves, not flags:
 
 ```
 tlflow advance --result "round-trip tests pass"   # Now moves past the next item

@@ -22,14 +22,14 @@ REFS
     now         the Now boundary itself
 
 THE SHAPE OF IT
-  Work lives on one ordered line: history behind Now, intention ahead of it.
+  Throughline is one ordered learning log: history behind Now, intention ahead of it.
   Completion is POSITION, not state — an item is done when it sits behind Now.
   Placement is always required; there is no backlog to drop things into.
 
 EXAMPLES
   tlflow                                   open the terminal UI
   tlflow window                            what is in focus right now
-  tlflow add \"parse the file\" --after now  place work deliberately
+  tlflow add \"parse the file\" --after now  place an entry deliberately
   tlflow advance --result \"tests pass\"     complete, and record what happened
   tlflow move ^k3f --before v0.1           reorder; this is replanning
   tlflow check                             lint the line against the practice
@@ -40,7 +40,7 @@ EXAMPLES
 #[derive(Parser)]
 #[command(
     name = "tlflow",
-    about = "Manage work as one ordered line — a practice of continuous inquiry and forward flow",
+    about = "Manage one ordered learning log — a practice of continuous inquiry and forward flow",
     after_help = AFTER_HELP,
     version
 )]
@@ -84,7 +84,7 @@ pub enum Command {
     },
     /// Add an item. Placement is required.
     Add {
-        /// What the work is.
+        /// What the entry is.
         title: String,
         /// Place immediately after this ref.
         #[arg(long, group = "place", value_name = "REF")]

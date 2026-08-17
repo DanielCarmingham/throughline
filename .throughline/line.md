@@ -57,8 +57,10 @@
       → Documentation reframed Throughline around learning continuity: a business line of intentions, events, evidence, outcomes, and accountability as learning carried into action. Tooling deliberately left behind the idea so it can catch up after the model settles.
 - [x] center Throughline as a learning log  ^wvm
       → Docs and site now characterize Throughline first as a learning log: an ordered record of intentions, events, evidence, outcomes, what they taught, and what changed. That sharpens the next model-design work around preserving learning rather than tracking completed tasks or decisions.
+- [x] proofread and deepen learning-log docs  ^662
+      → Proofreading pass clarified that Inquiry manages the PDSA cycle, the current item vocabulary is mechanical rather than conceptual, and accounting for the line is sensemaking across intentions, evidence/events, and outcomes. Added diagrams for PDSA-to-line and accounted/unconnected threads; aligned README, manual, site, CLI help, MCP instructions, init stanzas, and AGENTS.md around the learning-log framing.
 
 ── NOW ──
 
 - [ ] design event/evidence model for tlflow  ^8h5
-      Figure out the smallest model change that lets tlflow preserve a learning log: intentions, events, evidence, outcomes, exclusions, and unconnected threads, plus what each taught and what changed because of it. Keep reconciliation non-punitive; the model should help an organization account for learning continuity, not score delivery against a plan. Start from documentation language before changing file format or commands.
+      Figure out the smallest model change that lets tlflow preserve a learning log: intentions, events, evidence, outcomes, exclusions, and unconnected threads, plus what each taught and what changed because of it. Resolve the vocabulary gap deliberately: the current file format has items, but the practice wants broader learning entries. Keep reconciliation non-punitive; the model should help an organization account for learning continuity across intentions, evidence/events, and outcomes, not score delivery against a plan. Start from documentation language before changing file format or commands.

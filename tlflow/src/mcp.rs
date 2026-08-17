@@ -337,12 +337,15 @@ impl Throughline {
 pub struct Empty {}
 
 const INSTRUCTIONS: &str = "\
-Throughline is a practice of continuous inquiry and forward flow. Work lives on
-one ordered line running from past, through Now, into the future.
+Throughline is a practice of continuous inquiry and forward flow. Intentions,
+events, evidence and outcomes live in one ordered learning log running from
+past, through Now, into the future.
 
-Completion is POSITION, not state: an item is done when it sits behind Now. Use
-`advance` to move Now forward, and always record what actually happened in
-`result` — that is where the practice keeps what it learned.
+Completion is POSITION, not state: an item is done when it sits behind Now. The
+file format calls entries items, but the practice can use them for intentions,
+events, evidence, outcomes, exclusions, and follow-up threads. Use `advance` to
+move Now forward, and always record what actually happened in `result` — that is
+where the practice keeps what it learned.
 
 Then ask the question that moves things: what does that change? Act on the
 answer with `move` or `add`. Placement is always required; there is no backlog.";
